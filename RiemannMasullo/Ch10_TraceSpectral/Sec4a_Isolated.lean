@@ -334,12 +334,13 @@ theorem spectralStripConvolution_hilbertSchmidt_of_section {G : Type*} [NormedAd
 open Classical in
 /-- Gram–Schmidt along an enumeration turns a linearly independent family whose orthogonal
 complement is zero into a Hilbert basis whose `i`-th vector lies in the span of the vectors of
-index at most `i`. -/
+index at most `i` and is orthogonal to the vectors of smaller index. -/
 private theorem exists_spectralComplement_takenakaBasis_aux {H ι : Type*} [NormedAddCommGroup H]
     [InnerProductSpace ℂ H] [CompleteSpace H] (f : ι → H) (hf : LinearIndependent ℂ f)
     (hsep : ∀ v : H, (∀ i, inner ℂ (f i) v = 0) → v = 0) (n : ι → ℕ)
     (hn : Function.Injective n) :
-    ∃ e : HilbertBasis ι ℂ H, ∀ i, e i ∈ Submodule.span ℂ (f '' {k | n k ≤ n i}) := by
+    ∃ e : HilbertBasis ι ℂ H, (∀ i, e i ∈ Submodule.span ℂ (f '' {k | n k ≤ n i})) ∧
+      ∀ i k, n k < n i → inner ℂ (f k) (e i) = 0 := by
   let S := {m : ℕ // m ∈ Set.range n}
   let σ : ι ≃ S := Equiv.ofInjective n hn
   let g : S → H := f ∘ σ.symm
@@ -358,7 +359,15 @@ private theorem exists_spectralComplement_takenakaBasis_aux {H ι : Type*} [Norm
     have := (Submodule.mem_orthogonal _ v).mp hv' (g (σ i))
       (Submodule.subset_span ⟨σ i, rfl⟩)
     simpa [g] using this
-  refine ⟨HilbertBasis.mkOfOrthogonalEqBot hv hbot, fun i ↦ ?_⟩
+  refine ⟨HilbertBasis.mkOfOrthogonalEqBot hv hbot, fun i ↦ ?_, fun i k hki ↦ ?_⟩
+  swap
+  · rw [HilbertBasis.coe_mkOfOrthogonalEqBot]
+    have hlt : σ k < σ i := hki
+    have h0 := InnerProductSpace.gramSchmidt_inv_triangular ℂ g hlt
+    have hgk : g (σ k) = f k := congrArg f (σ.symm_apply_apply k)
+    rw [hgk] at h0
+    change inner ℂ (f k) (InnerProductSpace.gramSchmidtNormed ℂ g (σ i)) = 0
+    rw [InnerProductSpace.gramSchmidtNormed, inner_smul_right, inner_eq_zero_symm.mp h0, mul_zero]
   rw [HilbertBasis.coe_mkOfOrthogonalEqBot]
   have hmem : InnerProductSpace.gramSchmidt ℂ g (σ i) ∈
       Submodule.span ℂ (g '' Set.Iic (σ i)) :=
@@ -377,7 +386,8 @@ private theorem exists_spectralComplement_takenakaBasis_aux {H ι : Type*} [Norm
 /-- Paper: Theorem 10.2.2.1, p. 446, and Theorem 10.4.2.1, p. 459. Every strip jet pairing is
 the inner product with a vector `r j` of the weighted space, and for an enumeration `n` of the
 jets the orthogonal complement of the theta closure has a Hilbert basis `e` indexed by the jets
-whose `j`-th vector lies in the span of the `r k` with `n k ≤ n j`.
+whose `j`-th vector lies in the span of the `r k` with `n k ≤ n j` and has vanishing pairing with
+every jet `u k` with `n k < n j`.
 Reconstruction: The paper does not use such a basis. It is the analogue, in the weighted space,
 of the Takenaka–Malmquist–Walsh basis of a model space, the Gram–Schmidt orthonormalization of
 the reproducing kernels at the zeros (S. R. Garcia and W. T. Ross, *Model spaces: a survey*,
@@ -396,7 +406,8 @@ theorem exists_spectralComplement_takenakaBasis
     ∃ (r : SpectralStripJetIndex χ a α s → W) (n : SpectralStripJetIndex χ a α s → ℕ)
       (e : HilbertBasis (SpectralStripJetIndex χ a α s) ℂ (globalThetaSobolev F a hI hs)ᗮ),
       (∀ j f, inner ℂ (r j) f = spectralSobolevPairing f (u j)) ∧ Function.Injective n ∧
-      ∀ j, (e j : W) ∈ Submodule.span ℂ (r '' {k | n k ≤ n j}) := by
+      (∀ j, (e j : W) ∈ Submodule.span ℂ (r '' {k | n k ≤ n j})) ∧
+      ∀ j k, n k < n j → spectralSobolevPairing (e j : W) (u k) = 0 := by
   intro u
   let Θ := globalThetaSobolev F a hI hs
   let T := (modulatedIntervalSobolev_dual m𝔽
@@ -435,8 +446,11 @@ theorem exists_spectralComplement_takenakaBasis
     have h0 := Submodule.inner_right_of_mem_orthogonal hvΘ v.2
     exact Subtype.ext (inner_self_eq_zero.mp h0)
   obtain ⟨n, hn⟩ := (spectralStripJet_countable χ a α s).exists_injective_nat
-  obtain ⟨e, he⟩ := exists_spectralComplement_takenakaBasis_aux f' hf' hsep n hn
-  refine ⟨r, n, e, hr, hn, fun j ↦ ?_⟩
+  obtain ⟨e, he, hortho⟩ := exists_spectralComplement_takenakaBasis_aux f' hf' hsep n hn
+  refine ⟨r, n, e, hr, hn, fun j ↦ ?_, fun j k hkj ↦ ?_⟩
+  swap
+  · rw [← hr]
+    exact hortho j k hkj
   have h1 : ((e j : Θᗮ) : W) ∈ (Submodule.span ℂ (f' '' {k | n k ≤ n j})).map Θᗮ.subtype :=
     Submodule.mem_map_of_mem (he j)
   rw [Submodule.map_span, ← Set.image_comp] at h1
