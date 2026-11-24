@@ -1163,6 +1163,47 @@ private theorem sum_sq_orthonormalBasis_mono {E : Type*} [NormedAddCommGroup E]
   rw [tsum_fintype] at h
   simpa [v, OrthonormalBasis.coe_toHilbertBasis] using h
 
+/-- A bound for the squared norms of an operator over orthonormal bases of the spans of the jet
+representers, for the finite sets of jets that contain the jets of lower order at the same zero,
+gives the same bound for all finite sets of jets: each finite set lies in such a set, and the sums
+grow with the span. -/
+private theorem finite_jet_bound_of_downward
+    (χ : PontryaginDual (ideleClassNorm F).ker → PontryaginDual C𝔽)
+    (r : SpectralStripJetIndex χ a α s → W) (T : W →L[ℂ] W) (C : ℝ)
+    (hC : ∀ S : Finset (SpectralStripJetIndex χ a α s),
+      (∀ j ∈ S, ∀ (i : ℕ) (hi : i ≤ j.val.2.2.2),
+        (⟨(j.val.1, j.val.2.1, j.val.2.2.1, i), lt_of_le_of_lt hi j.2⟩ :
+          SpectralStripJetIndex χ a α s) ∈ S) →
+      ∃ (k : ℕ) (b : OrthonormalBasis (Fin k) ℂ (Submodule.span ℂ (r '' S))),
+        ∑ i, ‖T (b i)‖ ^ 2 ≤ C)
+    (S : Finset (SpectralStripJetIndex χ a α s)) :
+    ∃ (k : ℕ) (b : OrthonormalBasis (Fin k) ℂ (Submodule.span ℂ (r '' S))),
+      ∑ i, ‖T (b i)‖ ^ 2 ≤ C := by
+  classical
+  let low (j : SpectralStripJetIndex χ a α s) (i : Fin (j.val.2.2.2 + 1)) :
+      SpectralStripJetIndex χ a α s :=
+    ⟨(j.val.1, j.val.2.1, j.val.2.2.1, i.val), lt_of_le_of_lt (Nat.le_of_lt_succ i.isLt) j.2⟩
+  let S' := S.biUnion fun j ↦ Finset.univ.image (low j)
+  have hS' : ∀ j ∈ S', ∀ (i : ℕ) (hi : i ≤ j.val.2.2.2),
+      (⟨(j.val.1, j.val.2.1, j.val.2.2.1, i), lt_of_le_of_lt hi j.2⟩ :
+        SpectralStripJetIndex χ a α s) ∈ S' := by
+    intro j hj i hi
+    simp only [S', Finset.mem_biUnion, Finset.mem_image, Finset.mem_univ, true_and] at hj ⊢
+    obtain ⟨j₀, hj₀, i₀, rfl⟩ := hj
+    have hi' : i < j₀.val.2.2.2 + 1 := lt_of_le_of_lt hi i₀.isLt
+    exact ⟨j₀, hj₀, ⟨i, hi'⟩, rfl⟩
+  have hsub : S ⊆ S' := by
+    intro j hj
+    simp only [S', Finset.mem_biUnion, Finset.mem_image, Finset.mem_univ, true_and]
+    exact ⟨j, hj, ⟨j.val.2.2.2, Nat.lt_succ_self _⟩, rfl⟩
+  obtain ⟨k', b', hb'⟩ := hC S' hS'
+  have hV : Submodule.span ℂ (r '' S) ≤ Submodule.span ℂ (r '' S') :=
+    Submodule.span_mono (Set.image_mono (Finset.coe_subset.mpr hsub))
+  have : FiniteDimensional ℂ (Submodule.span ℂ (r '' S)) :=
+    FiniteDimensional.span_of_finite ℂ (S.finite_toSet.image r)
+  exact ⟨_, stdOrthonormalBasis ℂ _,
+    (sum_sq_orthonormalBasis_mono _ hV (stdOrthonormalBasis ℂ _) b').trans hb'⟩
+
 /-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). Every test acts on the strip
 quotient by a nuclear operator exactly when, for every test `ψ`, the squared norms of the adjoint
 of `A(ψ)` over an orthonormal basis of the span of the jet representers `r j` with `j ∈ S` are
@@ -1204,30 +1245,59 @@ theorem spectralStripConvolution_nuclear_iff_downward_jet_bound_adjoint
     obtain ⟨hr, hC⟩ := h
     refine ⟨r, hr, fun ψ ↦ ?_⟩
     obtain ⟨C, hC⟩ := hC ψ
-    refine ⟨C, fun S ↦ ?_⟩
-    let low (j : SpectralStripJetIndex χ a α s) (i : Fin (j.val.2.2.2 + 1)) :
-        SpectralStripJetIndex χ a α s :=
-      ⟨(j.val.1, j.val.2.1, j.val.2.2.1, i.val), lt_of_le_of_lt (Nat.le_of_lt_succ i.isLt) j.2⟩
-    let S' := S.biUnion fun j ↦ Finset.univ.image (low j)
-    have hS' : ∀ j ∈ S', ∀ (i : ℕ) (hi : i ≤ j.val.2.2.2),
-        (⟨(j.val.1, j.val.2.1, j.val.2.2.1, i), lt_of_le_of_lt hi j.2⟩ :
-          SpectralStripJetIndex χ a α s) ∈ S' := by
-      intro j hj i hi
-      simp only [S', Finset.mem_biUnion, Finset.mem_image, Finset.mem_univ, true_and] at hj ⊢
-      obtain ⟨j₀, hj₀, i₀, rfl⟩ := hj
-      have hi' : i < j₀.val.2.2.2 + 1 := lt_of_le_of_lt hi i₀.isLt
-      exact ⟨j₀, hj₀, ⟨i, hi'⟩, rfl⟩
-    have hsub : S ⊆ S' := by
-      intro j hj
-      simp only [S', Finset.mem_biUnion, Finset.mem_image, Finset.mem_univ, true_and]
-      exact ⟨j, hj, ⟨j.val.2.2.2, Nat.lt_succ_self _⟩, rfl⟩
-    obtain ⟨k', b', hb'⟩ := hC S' hS'
-    have hV : Submodule.span ℂ (r '' S) ≤ Submodule.span ℂ (r '' S') :=
-      Submodule.span_mono (Set.image_mono (Finset.coe_subset.mpr hsub))
+    exact ⟨C, finite_jet_bound_of_downward (a := a) (χ := χ) (r := r) (T := (A(ψ)).adjoint) (C := C) (hC := hC)⟩
+
+/-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). Convolution by a test `ψ` acts on the
+strip quotient by a Hilbert–Schmidt operator exactly when the squared norms of the adjoint of
+`A(ψ)` over an orthonormal basis of the span of the jet representers `r j` with `j ∈ S` are
+bounded uniformly over the finite sets `S` of jets that contain, with each jet, the jets of lower
+order at the same zero.
+Reconstruction: The paper does not state a Hilbert–Schmidt bound. One direction is the Takenaka
+basis argument of `spectralStripConvolution_nuclear_of_finite_jet_bound_adjoint`, the other is
+Bessel's inequality as in `spectralStripConvolution_nuclear_iff_finite_jet_bound_adjoint`, both
+through `spectralStripConvolution_hilbertSchmidt_iff_summable_adjoint`. Unlike those statements
+this one is for a single test and uses no classical input. On these spans the adjoint acts by a
+matrix that is triangular in the jets of each zero, with diagonal the conjugate Mellin transforms
+of `ψ` at the zeros (`spectralStripJet_adjoint_testAction_mem_span`,
+`spectralStripJet_adjoint_testAction`).
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripConvolution_hilbertSchmidt_iff_downward_jet_bound_adjoint
+    (χ : PontryaginDual (ideleClassNorm F).ker → PontryaginDual C𝔽)
+    (hχ : IsSpectralBasepointChoice χ) (r : SpectralStripJetIndex χ a α s → W)
+    (hr : ∀ j f, inner ℂ (r j) f = spectralSobolevPairing f
+      ((spectralStripJet_memLp χ hα hs j).toLp
+        (spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2)))
+    (ψ : BruhatCompactSupport C𝔽) :
+    Aq(ψ) ∈ hilbertSchmidtOperators H₀ H₀ ↔
+      ∃ C : ℝ, ∀ S : Finset (SpectralStripJetIndex χ a α s),
+        (∀ j ∈ S, ∀ (i : ℕ) (hi : i ≤ j.val.2.2.2),
+          (⟨(j.val.1, j.val.2.1, j.val.2.2.1, i), lt_of_le_of_lt hi j.2⟩ :
+            SpectralStripJetIndex χ a α s) ∈ S) →
+        ∃ (k : ℕ) (b : OrthonormalBasis (Fin k) ℂ (Submodule.span ℂ (r '' S))),
+          ∑ i, ‖(A(ψ)).adjoint (b i)‖ ^ 2 ≤ C := by
+  obtain ⟨e, he⟩ := exists_spectralComplement_basis_summable_of_finite_bound a hα hs χ hχ r hr
+  refine (spectralStripConvolution_hilbertSchmidt_iff_summable_adjoint a hα hs e ψ).trans
+    ⟨fun hsum ↦ ⟨∑' j, ‖(A(ψ)).adjoint (e j)‖ ^ (2 : ℕ), fun S _ ↦ ?_⟩, fun h ↦ ?_⟩
+  · have hK := spectralStripJet_commonKernel χ hχ (a := a) hα hs
+    have hrΘ (j : SpectralStripJetIndex χ a α s) : r j ∈ (globalThetaSobolev F a hI hs)ᗮ := by
+      rw [Submodule.mem_orthogonal']
+      intro θ hθ
+      rw [hr]
+      exact (hK θ).mp hθ j
+    have hle : Submodule.span ℂ (r '' S) ≤ (globalThetaSobolev F a hI hs)ᗮ :=
+      Submodule.span_le.mpr (by rintro _ ⟨j, -, rfl⟩; exact hrΘ j)
     have : FiniteDimensional ℂ (Submodule.span ℂ (r '' S)) :=
       FiniteDimensional.span_of_finite ℂ (S.finite_toSet.image r)
-    exact ⟨_, stdOrthonormalBasis ℂ _,
-      (sum_sq_orthonormalBasis_mono _ hV (stdOrthonormalBasis ℂ _) b').trans hb'⟩
+    let b := stdOrthonormalBasis ℂ (Submodule.span ℂ (r '' S))
+    refine ⟨_, b, ?_⟩
+    let v (i : Fin (Module.finrank ℂ (Submodule.span ℂ (r '' S)))) :
+        (globalThetaSobolev F a hI hs)ᗮ := ⟨b i, hle (b i).2⟩
+    have hv : Orthonormal ℂ v := ⟨fun i ↦ b.orthonormal.1 i, fun i j hij ↦ b.orthonormal.2 hij⟩
+    exact sum_sq_orthonormal_le_tsum_sq_basis e
+      ((A(ψ)).adjoint.comp (globalThetaSobolev F a hI hs)ᗮ.subtypeL) hsum v hv
+  · obtain ⟨C, hC⟩ := h
+    exact he ((A(ψ)).adjoint) C (finite_jet_bound_of_downward (a := a) (χ := χ) (r := r) (T := (A(ψ)).adjoint) (C := C) (hC := hC))
 
 /-- Paper: Theorem 10.4.2.1, p. 459. Spectral projection after convolution is nuclear.
 This follows from the open statement `spectralStripConvolution_nuclear_of_le_one` by (10.4.2.5).
