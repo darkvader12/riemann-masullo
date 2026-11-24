@@ -163,6 +163,91 @@ theorem spectralStripConvolution_nuclear_iff_hilbertSchmidt :
   ⟨fun h φ ↦ spectralStripConvolution_hilbertSchmidt_of_nuclear a hα hs φ (h φ),
     fun h φ ↦ spectralStripConvolution_nuclear_of_hilbertSchmidt a hα hs h φ⟩
 
+/-- Approximation numbers are nonnegative. -/
+private theorem spectralStripConvolution_hilbertSchmidt_of_spectralProjection_nonneg
+    {E G : Type*} [NormedAddCommGroup E] [InnerProductSpace ℂ E]
+    [NormedAddCommGroup G] [InnerProductSpace ℂ G] (T : E →L[ℂ] G) (n : ℕ) :
+    0 ≤ approximationNumber T n :=
+  Real.sInf_nonneg (by rintro _ ⟨_, _, rfl⟩; exact norm_nonneg _)
+
+/-- Composing a Hilbert–Schmidt operator with bounded operators on both sides gives a
+Hilbert–Schmidt operator. -/
+private theorem spectralStripConvolution_hilbertSchmidt_of_spectralProjection_ideal
+    {D E G K : Type*} [NormedAddCommGroup D] [InnerProductSpace ℂ D]
+    [CompleteSpace D] [NormedAddCommGroup E] [InnerProductSpace ℂ E] [CompleteSpace E]
+    [NormedAddCommGroup G] [InnerProductSpace ℂ G] [CompleteSpace G]
+    [NormedAddCommGroup K] [InnerProductSpace ℂ K] [CompleteSpace K]
+    (L : G →L[ℂ] K) (X : E →L[ℂ] G) (R : D →L[ℂ] E) (hX : X ∈ hilbertSchmidtOperators E G) :
+    (L.comp X).comp R ∈ hilbertSchmidtOperators D K := by
+  obtain ⟨hc, hsum⟩ := hX
+  refine ⟨(hc.clm_comp L).comp_clm R, ?_⟩
+  simp only [Real.rpow_two] at hsum ⊢
+  set c := approximationNumber L 0 * approximationNumber R 0
+  have hb (n : ℕ) :
+      approximationNumber ((L.comp X).comp R) (n + 2) ≤ c * approximationNumber X n := by
+    have h1 := approximationNumber_comp_le (L.comp X) R (n + 1) 0
+    have h2 := approximationNumber_comp_le L X 0 n
+    have e1 : n + 1 + 0 + 1 = n + 2 := by omega
+    have e2 : 0 + n + 1 = n + 1 := by omega
+    rw [e1] at h1
+    rw [e2] at h2
+    calc _ ≤ approximationNumber (L.comp X) (n + 1) * approximationNumber R 0 := h1
+      _ ≤ (approximationNumber L 0 * approximationNumber X n) * approximationNumber R 0 :=
+          mul_le_mul_of_nonneg_right h2
+            (spectralStripConvolution_hilbertSchmidt_of_spectralProjection_nonneg _ _)
+      _ = c * approximationNumber X n := by ring
+  refine (summable_nat_add_iff 2).mp ?_
+  refine (hsum.mul_left (c ^ 2)).of_nonneg_of_le (fun n ↦ sq_nonneg _) (fun n ↦ ?_)
+  rw [← mul_pow]
+  exact pow_le_pow_left₀
+    (spectralStripConvolution_hilbertSchmidt_of_spectralProjection_nonneg _ _) (hb n) 2
+
+/-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). If convolution after spectral
+projection is Hilbert–Schmidt on the weighted space, then quotient convolution is
+Hilbert–Schmidt.
+Reconstruction: The paper does not state a Hilbert–Schmidt bound. This reduces the hypothesis
+of `spectralStripConvolution_nuclear_of_hilbertSchmidt` to a statement on the weighted space:
+the quotient action is the quotient map after convolution after spectral projection, applied
+to the isometric section of the quotient map, and Hilbert–Schmidt operators form an ideal.
+For a Hilbert basis `e` of the spectral complement, the hypothesis says that the sum of
+`‖A(φ) e n‖²` is finite. The converse would also need the block from the spectral complement
+to the theta subspace to be Hilbert–Schmidt, which this argument does not give.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripConvolution_hilbertSchmidt_of_spectralProjection (φ : BruhatCompactSupport C𝔽)
+    (hHS : (A(φ)).comp (spectralProjection (F := F) a hα hs) ∈ hilbertSchmidtOperators W W) :
+    Aq(φ) ∈ hilbertSchmidtOperators H₀ H₀ := by
+  let Θ := globalThetaSobolev F a hI hs
+  let S : H₀ →L[ℂ] W := Θᗮ.subtypeL.comp
+    Θ.quotientEquivOrthogonal.toContinuousLinearEquiv.toContinuousLinearMap
+  have hS (x : H₀) : Θ.mkQ (S x) = x ∧ spectralProjection (F := F) a hα hs (S x) = S x :=
+    ⟨by simp [S], Submodule.starProjection_eq_self_iff.mpr (Θ.quotientEquivOrthogonal x).2⟩
+  have heq : Aq(φ) = (Θ.mkQL.comp ((A(φ)).comp (spectralProjection (F := F) a hα hs))).comp S := by
+    ext x
+    obtain ⟨h1, h2⟩ := hS x
+    conv_lhs => rw [← h1]
+    rw [spectralConvolution_mkQ]
+    change _ = Θ.mkQ (A(φ) (spectralProjection (F := F) a hα hs (S x)))
+    rw [h2]
+  rw [heq]
+  exact spectralStripConvolution_hilbertSchmidt_of_spectralProjection_ideal _ _ _ hHS
+
+/-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). If convolution after spectral
+projection is Hilbert–Schmidt on the weighted space for every test, then every test acts on the
+strip quotient by a nuclear operator.
+Reconstruction: The paper does not state a Hilbert–Schmidt bound. This combines
+`spectralStripConvolution_hilbertSchmidt_of_spectralProjection` with
+`spectralStripConvolution_nuclear_of_hilbertSchmidt`, and so uses the classical input
+`bruhatCompactSupport_mem_closure_convolution`.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripConvolution_nuclear_of_spectralProjection_hilbertSchmidt
+    (hHS : ∀ ψ : BruhatCompactSupport C𝔽,
+      (A(ψ)).comp (spectralProjection (F := F) a hα hs) ∈ hilbertSchmidtOperators W W)
+    (φ : BruhatCompactSupport C𝔽) : IsNuclearOperator (E := H₀) (F := H₀) (Aq(φ)) :=
+  spectralStripConvolution_nuclear_of_hilbertSchmidt a hα hs
+    (fun ψ ↦ spectralStripConvolution_hilbertSchmidt_of_spectralProjection a hα hs ψ (hHS ψ)) φ
+
 /-- Paper: Theorem 10.4.2.1, p. 459. Spectral projection after convolution is nuclear.
 This follows from the open statement `spectralStripConvolution_nuclear_of_le_one` by (10.4.2.5).
 Deviation: This is the part of the printed range with `0 ≤ s ≤ 1`. The operator is independent
