@@ -812,13 +812,14 @@ then every test acts on the strip quotient by a nuclear operator.
 Reconstruction: The paper does not state a Hilbert–Schmidt bound. As in
 `spectralStripConvolution_nuclear_of_finite_jet_bound`, the Takenaka basis turns the bound into
 square summability of the adjoint on a Hilbert basis of the complement, and
-`spectralStripConvolution_nuclear_iff_summable_adjoint` applies. The adjoint is expected to be
-the natural operator here, although this is not formalized: a pairing with a jet at a zero `ρ`
-should intertwine convolution by `ψ` with multiplication by the transform of `ψ` and its
-derivatives at `ρ`, so that the adjoint maps the span of the `r j` of the jets at `ρ` into
-itself, with eigenvalue the conjugate of the transform at `ρ`. On the span of finitely many `r j`
-the hypothesis would then bound the Hilbert–Schmidt norm of a triangular matrix, with no lower
-bound needed for the Gram matrix of the `r j`.
+`spectralStripConvolution_nuclear_iff_summable_adjoint` applies. The adjoint is the natural
+operator here: a pairing with a jet at a zero `ρ` intertwines convolution by `ψ` with
+multiplication by the transform of `ψ` and its derivatives at `ρ`
+(`spectralStripJet_pairing_testAction`), so the adjoint maps the span of the `r j` of the jets at
+`ρ` into itself, with eigenvalue the conjugate of the transform at `ρ`
+(`spectralStripJet_adjoint_testAction`). On such spans the hypothesis bounds the
+Hilbert–Schmidt norm of a triangular matrix, with no lower bound needed for the Gram matrix of
+the `r j`.
 Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
 this statement, and it is not known how it connects with the rest of the proof in Lean. -/
 theorem spectralStripConvolution_nuclear_of_finite_jet_bound_adjoint
@@ -892,6 +893,341 @@ theorem spectralStripConvolution_nuclear_iff_finite_jet_bound_adjoint
   have hv : Orthonormal ℂ v := ⟨fun i ↦ b.orthonormal.1 i, fun i j hij ↦ b.orthonormal.2 hij⟩
   exact sum_sq_orthonormal_le_tsum_sq_basis e
     ((A(ψ)).adjoint.comp (globalThetaSobolev F a hI hs)ᗮ.subtypeL) hsum v hv
+
+/-- The logarithm of the idele class norm is continuous. -/
+private theorem continuous_logIdeleClassNorm_isolated :
+    Continuous (fun g : C𝔽 ↦ Real.log ((m𝔽 g).val : ℝ)) :=
+  Real.continuousOn_log.comp_continuous
+    (NNReal.continuous_coe.comp (Units.continuous_val.comp (continuousIdeleClassNorm F).continuous))
+    fun _ ↦ (NNReal.coe_pos.mpr (Units.zero_lt _)).ne'
+
+/-- Pulling constants out of a product integral. -/
+private theorem spectralStripJet_scalar_integral_isolated {G : Type*} [MeasurableSpace G]
+    (ν : Measure G) (u v w : G → ℂ) (c y : ℂ) :
+    (∫ g, u g * ((v g * w g * c) * y) ∂ν) = c * (∫ g, u g * v g * w g ∂ν) * y := by
+  rw [← integral_const_mul, ← integral_mul_const]
+  apply integral_congr_ae (.of_forall fun g ↦ ?_)
+  ring
+
+/-- Translating the argument of a function against a strip jet of order `m` gives the binomial
+combination of the lower jets, with coefficients the norm twist and powers of the logarithm of
+the norm at the translation. -/
+private theorem spectralStripJet_translated_moments_isolated (η : PontryaginDual C𝔽) (b t : ℝ)
+    (m : ℕ) (v : C𝔽 → ℂ)
+    (hint : ∀ i ≤ m, Integrable (fun x ↦ v x * spectralZeroJet (F := F) η b t i x) μ𝔽)
+    (g : C𝔽) :
+    ∫ y : C𝔽, v (g⁻¹ * y) * spectralZeroJet (F := F) η b t m y ∂μ𝔽 =
+      ∑ i : Fin (m + 1), (ideleClassNormTwist (F := F) η (((b : ℝ) : ℂ) + (t : ℂ) * Complex.I) g *
+        (logIdeleClassNorm F g : ℂ) ^ (m - i.val) * (m.choose i.val : ℂ)) *
+        ∫ y, v y * spectralZeroJet (F := F) η b t i.val y ∂μ𝔽 := by
+  let T := ideleClassNormTwist (F := F) η ((b : ℂ) + (t : ℂ) * Complex.I)
+  let L (y : C𝔽) : ℂ := logIdeleClassNorm F y
+  let c (i : ℕ) := T g * L g ^ (m - i) * (m.choose i : ℂ)
+  have hlog (y : C𝔽) : L (g * y) = L y + L g := by
+    dsimp only [L, logIdeleClassNorm]
+    rw [map_mul, Units.val_mul, NNReal.coe_mul, Real.log_mul
+      (NNReal.coe_ne_zero.2 (ideleClassNorm F g).ne_zero)
+      (NNReal.coe_ne_zero.2 (ideleClassNorm F y).ne_zero), Complex.ofReal_add, add_comm]
+  have hsum (y : C𝔽) : v y * spectralZeroJet (F := F) η b t m (g * y) =
+      ∑ i ∈ Finset.range (m + 1), c i * (v y * spectralZeroJet (F := F) η b t i y) := by
+    change v y * (T (g * y) * L (g * y) ^ m) = _
+    rw [map_mul, hlog, add_pow]
+    simp only [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun i _ ↦ ?_
+    change v y * (T g * T y * (L y ^ i * L g ^ (m - i) * (m.choose i : ℂ))) =
+      (T g * L g ^ (m - i) * (m.choose i : ℂ)) * (v y * (T y * L y ^ i))
+    ring
+  let J := spectralZeroJet (F := F) η b t m
+  let H (y : C𝔽) := v (g⁻¹ * y) * J y
+  calc
+    _ = ∫ y, H y ∂μ𝔽 := rfl
+    _ = ∫ y, H (g * y) ∂μ𝔽 := (integral_mul_left_eq_self H g).symm
+    _ = ∫ y, v y * J (g * y) ∂μ𝔽 := by simp only [H, inv_mul_cancel_left]
+    _ = _ := by
+      simp_rw [show ∀ y, v y * J (g * y) = _ from hsum]
+      rw [integral_finsetSum _ fun i hi ↦ (hint i (Finset.mem_range_succ_iff.mp hi)).const_mul (c i)]
+      simp_rw [integral_const_mul]
+      exact (Fin.sum_univ_eq_sum_range
+        (fun i ↦ c i * ∫ y, v y * spectralZeroJet (F := F) η b t i y ∂μ𝔽) _).symm
+
+/-- The dual vector of a strip jet is almost everywhere the jet for Haar measure. -/
+private theorem spectralStripJet_toLp_ae_isolated
+    (χ : PontryaginDual (ideleClassNorm F).ker → PontryaginDual C𝔽)
+    (j : SpectralStripJetIndex χ a α s) :
+    ((spectralStripJet_memLp χ hα hs j).toLp
+        (spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2) : C𝔽 → ℂ) =ᵐ[μ𝔽]
+      spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2 := by
+  let w (g : C𝔽) := intervalSobolevDensity (-α) α s (logIdeleClassNorm F g)
+  have hw : Measurable w := by
+    have hD : Continuous (intervalSobolevDensity (-α) α s) := by
+      unfold intervalSobolevDensity
+      fun_prop
+    exact hD.measurable.comp ((NNReal.continuous_coe.comp
+      (Units.continuous_val.comp (isProperMap_ideleClassNorm F).continuous)).measurable.log)
+  have habs : μ𝔽 ≪ (μ𝔽).withDensity (fun g ↦ ENNReal.ofReal (w g)⁻¹) := by
+    refine withDensity_absolutelyContinuous' hw.inv.ennreal_ofReal.aemeasurable
+      (.of_forall fun g ↦ ?_)
+    refine ENNReal.ofReal_ne_zero_iff.mpr (inv_pos.mpr ?_)
+    exact mul_pos (lt_max_of_lt_left (Real.exp_pos _)) (Real.rpow_pos_of_pos (by positivity) _)
+  exact habs.ae_le (MemLp.coeFn_toLp _)
+
+/-- Paper: Theorem 10.2.2.1, p. 446, and Theorem 10.3.2.1(1), pp. 453–455. The pairing of a
+convolution `A(ψ) v` with a strip jet of order `k` at a zero is the binomial combination of the
+pairings of `v` with the jets of order `i ≤ k` at the same zero, with coefficients the logarithmic
+Mellin moments of `ψ` there. The coefficient of the jet itself is the Mellin transform of `ψ` at
+the zero.
+Reconstruction: The paper proves this on the strip quotient for `s > 1` in Theorem 10.3.2.1(1);
+the argument (translate, change variables by invariance of Haar measure, expand the twist and the
+power of the logarithm) uses no restriction on the order and is repeated here on the weighted
+space.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripJet_pairing_testAction
+    (χ : PontryaginDual (ideleClassNorm F).ker → PontryaginDual C𝔽)
+    (j : SpectralStripJetIndex χ a α s) (ψ : BruhatCompactSupport C𝔽) (v : W) :
+    let u (j : SpectralStripJetIndex χ a α s) :
+        CompactIntervalSobolev μ𝔽 (logIdeleClassNorm F) (-α) α s true :=
+      (spectralStripJet_memLp χ hα hs j).toLp
+        (spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2)
+    let low (i : Fin (j.val.2.2.2 + 1)) : SpectralStripJetIndex χ a α s :=
+      ⟨(j.val.1, j.val.2.1, j.val.2.2.1, i.val), lt_of_le_of_lt (Nat.le_of_lt_succ i.isLt) j.2⟩
+    spectralSobolevPairing (A(ψ) v) (u j) =
+      ∑ i : Fin (j.val.2.2.2 + 1), (j.val.2.2.2.choose i.val : ℂ) *
+        (∫ g : C𝔽, ψ.val g * ideleClassNormTwist (χ j.val.1)
+          (((j.val.2.1 : ℝ) : ℂ) + (j.val.2.2.1 : ℂ) * Complex.I) g *
+          (logIdeleClassNorm F g : ℂ) ^ (j.val.2.2.2 - i.val) ∂μ𝔽) *
+        spectralSobolevPairing v (u (low i)) := by
+  intro u low
+  let k := j.val.2.2.2
+  let T := (modulatedIntervalSobolev_dual m𝔽
+    (⟨isProperMap_ideleClassNorm F, ideleClassNorm_ne_one (F := F)⟩ : IsModulation m𝔽)
+    μ𝔽 (-α) α s hI hs).exists.choose
+  have hint (j' : SpectralStripJetIndex χ a α s) (f : W) :
+      Integrable (fun y ↦ f y * spectralZeroJet (χ j'.val.1) j'.val.2.1 j'.val.2.2.1
+        j'.val.2.2.2 y) μ𝔽 ∧
+      spectralSobolevPairing f (u j') = ∫ y, f y * spectralZeroJet (χ j'.val.1) j'.val.2.1
+        j'.val.2.2.1 j'.val.2.2.2 y ∂μ𝔽 := by
+    have h1 : Integrable (fun g ↦ f g * (u j' : C𝔽 → ℂ) g) μ𝔽 := by
+      have h := (spectralSobolevPairing_dual hI hs (T.symm (u j')) f).1
+      rwa [T.apply_symm_apply] at h
+    have hEq : (fun y ↦ f y * (u j' : C𝔽 → ℂ) y) =ᵐ[μ𝔽] fun y ↦ f y *
+        spectralZeroJet (χ j'.val.1) j'.val.2.1 j'.val.2.2.1 j'.val.2.2.2 y :=
+      (spectralStripJet_toLp_ae_isolated a hα hs χ j').mono fun y hy ↦ congrArg (f y * ·) hy
+    exact ⟨h1.congr hEq, integral_congr_ae hEq⟩
+  let Λ : StrongDual ℂ W := T.symm (u j)
+  have hΛ (f : W) : Λ f = spectralSobolevPairing f (u j) := by
+    have h := (spectralSobolevPairing_dual hI hs Λ f).2
+    rw [h]
+    exact congrArg (spectralSobolevPairing f) (T.apply_symm_apply (u j))
+  let τ := hardySobolevTranslation μ𝔽 m𝔽 (-α) α s hI hs
+  have hP := bruhatRegularizedAction_apply μ𝔽 τ
+    (exists_hardySobolevTranslation μ𝔽 m𝔽 (-α) α s hI hs).choose_spec.2 ψ v
+  have he : Λ (A(ψ) v) = ∫ g, Λ (ψ.val g • τ g v) ∂μ𝔽 :=
+    congrArg (fun p : PettisWeakCompletion W ↦ (show Module.Dual ℂ (StrongDual ℂ W) from p) Λ) hP.2
+  let η := ideleClassNormTwist (χ j.val.1) (((j.val.2.1 : ℝ) : ℂ) + (j.val.2.2.1 : ℂ) * Complex.I)
+  let c (i : Fin (k + 1)) (g : C𝔽) : ℂ :=
+    η g * (logIdeleClassNorm F g : ℂ) ^ (k - i.val) * (k.choose i.val : ℂ)
+  let y (i : Fin (k + 1)) : ℂ := spectralSobolevPairing v (u (low i))
+  have hτ (g : C𝔽) : Λ (τ g v) = ∑ i : Fin (k + 1), c i g * y i := by
+    rw [hΛ]
+    have hae := hardySobolevTranslation_apply μ𝔽 m𝔽 (-α) α s hI hs g v
+    calc spectralSobolevPairing (τ g v) (u j)
+        = ∫ x, (τ g v : C𝔽 → ℂ) x * spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 k x ∂μ𝔽 :=
+          (hint j (τ g v)).2
+      _ = ∫ x, (v : C𝔽 → ℂ) (g⁻¹ * x) * spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 k x
+            ∂μ𝔽 := integral_congr_ae (hae.mono fun x hx ↦ congrArg (· * _) hx)
+      _ = _ := spectralStripJet_translated_moments_isolated (χ j.val.1) j.val.2.1 j.val.2.2.1 k
+            (v : C𝔽 → ℂ) (fun i hi ↦ (hint ⟨(j.val.1, j.val.2.1, j.val.2.2.1, i),
+              lt_of_le_of_lt hi j.2⟩ v).1) g
+      _ = _ := Finset.sum_congr rfl fun i _ ↦ congrArg (c i g * ·) (hint (low i) v).2.symm
+  have hφ : Continuous ψ.val :=
+    continuous_of_bruhatSmooth ((mem_bruhatSmoothSubmodule_iff _).mp ψ.property.1)
+  have hg (i : Fin (k + 1)) : Integrable (fun g : C𝔽 ↦ ψ.val g * (c i g * y i)) μ𝔽 := by
+    have hl : Continuous (fun g : C𝔽 ↦ (logIdeleClassNorm F g : ℂ)) :=
+      Complex.continuous_ofReal.comp continuous_logIdeleClassNorm_isolated
+    exact (hφ.mul (((η.continuous.mul (hl.pow _)).mul continuous_const).mul
+      continuous_const)).integrable_of_hasCompactSupport
+      (show HasCompactSupport ψ.val from ψ.property.2).mul_right
+  rw [← hΛ, he]
+  calc ∫ g, Λ (ψ.val g • τ g v) ∂μ𝔽 = ∫ g, ∑ i : Fin (k + 1), ψ.val g * (c i g * y i) ∂μ𝔽 :=
+        integral_congr_ae (.of_forall fun g ↦ (map_smul Λ (ψ.val g) (τ g v)).trans
+          ((congrArg (ψ.val g * ·) (hτ g)).trans (Finset.mul_sum ..)))
+    _ = ∑ i : Fin (k + 1), ∫ g, ψ.val g * (c i g * y i) ∂μ𝔽 :=
+        integral_finsetSum _ (fun i _ ↦ hg i)
+    _ = _ := Finset.sum_congr rfl fun i _ ↦
+        spectralStripJet_scalar_integral_isolated μ𝔽 ψ.val η
+          (fun g ↦ (logIdeleClassNorm F g : ℂ) ^ (k - i.val)) _ _
+
+/-- Paper: Theorem 10.2.2.1, p. 446, and Theorem 10.3.2.1(1), pp. 453–455. If `r j` represents
+the pairing with the strip jet `u j`, the adjoint of convolution by `ψ` maps `r j` to the
+combination of the `r` of the jets of lower order at the same zero, with the conjugated
+coefficients of `spectralStripJet_pairing_testAction`. The coefficient of `r j` itself is the
+conjugate of the Mellin transform of `ψ` at the zero.
+Reconstruction: The paper does not use the adjoint. This is the transpose of
+`spectralStripJet_pairing_testAction` under the Riesz representation.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripJet_adjoint_testAction
+    (χ : PontryaginDual (ideleClassNorm F).ker → PontryaginDual C𝔽)
+    (r : SpectralStripJetIndex χ a α s → W)
+    (hr : ∀ j f, inner ℂ (r j) f = spectralSobolevPairing f
+      ((spectralStripJet_memLp χ hα hs j).toLp
+        (spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2)))
+    (j : SpectralStripJetIndex χ a α s) (ψ : BruhatCompactSupport C𝔽) :
+    let low (i : Fin (j.val.2.2.2 + 1)) : SpectralStripJetIndex χ a α s :=
+      ⟨(j.val.1, j.val.2.1, j.val.2.2.1, i.val), lt_of_le_of_lt (Nat.le_of_lt_succ i.isLt) j.2⟩
+    (A(ψ)).adjoint (r j) =
+      ∑ i : Fin (j.val.2.2.2 + 1), (starRingEnd ℂ) ((j.val.2.2.2.choose i.val : ℂ) *
+        (∫ g : C𝔽, ψ.val g * ideleClassNormTwist (χ j.val.1)
+          (((j.val.2.1 : ℝ) : ℂ) + (j.val.2.2.1 : ℂ) * Complex.I) g *
+          (logIdeleClassNorm F g : ℂ) ^ (j.val.2.2.2 - i.val) ∂μ𝔽)) • r (low i) := by
+  intro low
+  refine ext_inner_right ℂ fun v ↦ ?_
+  have h := spectralStripJet_pairing_testAction a hα hs χ j ψ v
+  dsimp only at h
+  refine (ContinuousLinearMap.adjoint_inner_left _ v (r j)).trans ?_
+  refine (hr j _).trans (h.trans ?_)
+  rw [sum_inner]
+  refine Finset.sum_congr rfl fun i _ ↦ ?_
+  rw [inner_smul_left, Complex.conj_conj]
+  exact congrArg (_ * ·) (hr (low i) v).symm
+
+/-- Paper: Theorem 10.2.2.1, p. 446. If a set of strip jets contains, with each jet, the jets of
+lower order at the same zero, then the adjoint of convolution by any test maps the span of their
+representers into itself.
+Reconstruction: The paper does not use the adjoint. This follows from
+`spectralStripJet_adjoint_testAction`. On such a finite set the adjoint is a triangular matrix
+in the jets of each zero, with diagonal the conjugate Mellin transform of the test at the zero,
+so the bound in `spectralStripConvolution_nuclear_iff_finite_jet_bound_adjoint` is a bound for
+the Hilbert–Schmidt norms of these finite matrices.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripJet_adjoint_testAction_mem_span
+    (χ : PontryaginDual (ideleClassNorm F).ker → PontryaginDual C𝔽)
+    (r : SpectralStripJetIndex χ a α s → W)
+    (hr : ∀ j f, inner ℂ (r j) f = spectralSobolevPairing f
+      ((spectralStripJet_memLp χ hα hs j).toLp
+        (spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2)))
+    (S : Set (SpectralStripJetIndex χ a α s))
+    (hS : ∀ j ∈ S, ∀ (i : ℕ) (hi : i ≤ j.val.2.2.2),
+      (⟨(j.val.1, j.val.2.1, j.val.2.2.1, i), lt_of_le_of_lt hi j.2⟩ :
+        SpectralStripJetIndex χ a α s) ∈ S)
+    (ψ : BruhatCompactSupport C𝔽) (x : W) (hx : x ∈ Submodule.span ℂ (r '' S)) :
+    (A(ψ)).adjoint x ∈ Submodule.span ℂ (r '' S) := by
+  have hle : Submodule.span ℂ (r '' S) ≤
+      (Submodule.span ℂ (r '' S)).comap ((A(ψ)).adjoint : W →ₗ[ℂ] W) := by
+    rw [Submodule.span_le]
+    rintro _ ⟨j, hj, rfl⟩
+    refine Submodule.mem_comap.mpr ?_
+    rw [ContinuousLinearMap.coe_coe]
+    rw [spectralStripJet_adjoint_testAction a hα hs χ r hr j ψ]
+    exact Submodule.sum_mem _ fun i _ ↦ Submodule.smul_mem _ _
+      (Submodule.subset_span ⟨_, hS j hj i.val (Nat.le_of_lt_succ i.isLt), rfl⟩)
+  exact hle hx
+
+/-- Paper: Theorem 10.2.2.1, p. 446. At a zero met only by the jet of order zero, the
+representer `r j` is an eigenvector of the adjoint of convolution by `ψ`, with eigenvalue the
+conjugate of the Mellin transform of `ψ` at the zero.
+Reconstruction: The paper does not use the adjoint. This is the case of order zero of
+`spectralStripJet_adjoint_testAction`.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripJet_adjoint_testAction_of_order_zero
+    (χ : PontryaginDual (ideleClassNorm F).ker → PontryaginDual C𝔽)
+    (r : SpectralStripJetIndex χ a α s → W)
+    (hr : ∀ j f, inner ℂ (r j) f = spectralSobolevPairing f
+      ((spectralStripJet_memLp χ hα hs j).toLp
+        (spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2)))
+    (j : SpectralStripJetIndex χ a α s) (hj : j.val.2.2.2 = 0) (ψ : BruhatCompactSupport C𝔽) :
+    (A(ψ)).adjoint (r j) = (starRingEnd ℂ) (∫ g : C𝔽, ψ.val g * ideleClassNormTwist (χ j.val.1)
+      (((j.val.2.1 : ℝ) : ℂ) + (j.val.2.2.1 : ℂ) * Complex.I) g ∂μ𝔽) • r j := by
+  obtain ⟨⟨c, b, t, k⟩, hk⟩ := j
+  simp only at hj
+  subst hj
+  rw [spectralStripJet_adjoint_testAction a hα hs χ r hr _ ψ]
+  simp
+
+/-- The squared norms of an operator on an orthonormal basis of a finite-dimensional subspace add
+up to at most those on an orthonormal basis of a larger finite-dimensional subspace. -/
+private theorem sum_sq_orthonormalBasis_mono {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℂ E] [CompleteSpace E] (T : E →L[ℂ] E) {V V' : Submodule ℂ E}
+    (hle : V ≤ V') {k k' : ℕ} (b : OrthonormalBasis (Fin k) ℂ V)
+    (b' : OrthonormalBasis (Fin k') ℂ V') :
+    ∑ i, ‖T (b i)‖ ^ 2 ≤ ∑ i, ‖T (b' i)‖ ^ 2 := by
+  have : FiniteDimensional ℂ V' := b'.toBasis.finiteDimensional_of_finite
+  have : CompleteSpace V' := FiniteDimensional.completeSpace ℂ V'
+  let v (i : Fin k) : V' := ⟨b i, hle (b i).2⟩
+  have hv : Orthonormal ℂ v := ⟨fun i ↦ b.orthonormal.1 i, fun i j hij ↦ b.orthonormal.2 hij⟩
+  have h := sum_sq_orthonormal_le_tsum_sq_basis b'.toHilbertBasis (T.comp V'.subtypeL)
+    (Summable.of_finite) v hv
+  rw [tsum_fintype] at h
+  simpa [v, OrthonormalBasis.coe_toHilbertBasis] using h
+
+/-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). Every test acts on the strip
+quotient by a nuclear operator exactly when, for every test `ψ`, the squared norms of the adjoint
+of `A(ψ)` over an orthonormal basis of the span of the jet representers `r j` with `j ∈ S` are
+bounded uniformly over the finite sets `S` of jets that contain, with each jet, the jets of lower
+order at the same zero.
+Reconstruction: The paper does not state a Hilbert–Schmidt bound. This is
+`spectralStripConvolution_nuclear_iff_finite_jet_bound_adjoint`, since every finite set lies in
+such a finite set and the sums grow with the span. On these spans the adjoint acts
+(`spectralStripJet_adjoint_testAction_mem_span`) by a matrix that is triangular in the jets of
+each zero, with diagonal the conjugate Mellin transforms of `ψ` at the zeros
+(`spectralStripJet_adjoint_testAction`), so the condition asks for a uniform bound on the
+Hilbert–Schmidt norms of these finite matrices.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripConvolution_nuclear_iff_downward_jet_bound_adjoint
+    (χ : PontryaginDual (ideleClassNorm F).ker → PontryaginDual C𝔽)
+    (hχ : IsSpectralBasepointChoice χ) :
+    let u (j : SpectralStripJetIndex χ a α s) :
+        CompactIntervalSobolev μ𝔽 (logIdeleClassNorm F) (-α) α s true :=
+      (spectralStripJet_memLp χ hα hs j).toLp
+        (spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2)
+    (∀ φ : BruhatCompactSupport C𝔽, IsNuclearOperator (E := H₀) (F := H₀) (Aq(φ))) ↔
+      ∃ r : SpectralStripJetIndex χ a α s → W,
+        (∀ j f, inner ℂ (r j) f = spectralSobolevPairing f (u j)) ∧
+        ∀ ψ : BruhatCompactSupport C𝔽, ∃ C : ℝ, ∀ S : Finset (SpectralStripJetIndex χ a α s),
+          (∀ j ∈ S, ∀ (i : ℕ) (hi : i ≤ j.val.2.2.2),
+            (⟨(j.val.1, j.val.2.1, j.val.2.2.1, i), lt_of_le_of_lt hi j.2⟩ :
+              SpectralStripJetIndex χ a α s) ∈ S) →
+          ∃ (k : ℕ) (b : OrthonormalBasis (Fin k) ℂ (Submodule.span ℂ (r '' S))),
+            ∑ i, ‖(A(ψ)).adjoint (b i)‖ ^ 2 ≤ C := by
+  classical
+  intro u
+  refine (spectralStripConvolution_nuclear_iff_finite_jet_bound_adjoint a hα hs χ hχ).trans
+    ⟨fun h ↦ ?_, fun h ↦ ?_⟩
+  · obtain ⟨r, h⟩ := h
+    obtain ⟨hr, hC⟩ := h
+    exact ⟨r, hr, fun ψ ↦ (hC ψ).imp fun C hC S _ ↦ hC S⟩
+  · obtain ⟨r, h⟩ := h
+    obtain ⟨hr, hC⟩ := h
+    refine ⟨r, hr, fun ψ ↦ ?_⟩
+    obtain ⟨C, hC⟩ := hC ψ
+    refine ⟨C, fun S ↦ ?_⟩
+    let low (j : SpectralStripJetIndex χ a α s) (i : Fin (j.val.2.2.2 + 1)) :
+        SpectralStripJetIndex χ a α s :=
+      ⟨(j.val.1, j.val.2.1, j.val.2.2.1, i.val), lt_of_le_of_lt (Nat.le_of_lt_succ i.isLt) j.2⟩
+    let S' := S.biUnion fun j ↦ Finset.univ.image (low j)
+    have hS' : ∀ j ∈ S', ∀ (i : ℕ) (hi : i ≤ j.val.2.2.2),
+        (⟨(j.val.1, j.val.2.1, j.val.2.2.1, i), lt_of_le_of_lt hi j.2⟩ :
+          SpectralStripJetIndex χ a α s) ∈ S' := by
+      intro j hj i hi
+      simp only [S', Finset.mem_biUnion, Finset.mem_image, Finset.mem_univ, true_and] at hj ⊢
+      obtain ⟨j₀, hj₀, i₀, rfl⟩ := hj
+      have hi' : i < j₀.val.2.2.2 + 1 := lt_of_le_of_lt hi i₀.isLt
+      exact ⟨j₀, hj₀, ⟨i, hi'⟩, rfl⟩
+    have hsub : S ⊆ S' := by
+      intro j hj
+      simp only [S', Finset.mem_biUnion, Finset.mem_image, Finset.mem_univ, true_and]
+      exact ⟨j, hj, ⟨j.val.2.2.2, Nat.lt_succ_self _⟩, rfl⟩
+    obtain ⟨k', b', hb'⟩ := hC S' hS'
+    have hV : Submodule.span ℂ (r '' S) ≤ Submodule.span ℂ (r '' S') :=
+      Submodule.span_mono (Set.image_mono (Finset.coe_subset.mpr hsub))
+    have : FiniteDimensional ℂ (Submodule.span ℂ (r '' S)) :=
+      FiniteDimensional.span_of_finite ℂ (S.finite_toSet.image r)
+    exact ⟨_, stdOrthonormalBasis ℂ _,
+      (sum_sq_orthonormalBasis_mono _ hV (stdOrthonormalBasis ℂ _) b').trans hb'⟩
 
 /-- Paper: Theorem 10.4.2.1, p. 459. Spectral projection after convolution is nuclear.
 This follows from the open statement `spectralStripConvolution_nuclear_of_le_one` by (10.4.2.5).
