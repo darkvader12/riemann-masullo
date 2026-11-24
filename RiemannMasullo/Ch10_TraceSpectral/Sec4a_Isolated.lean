@@ -2,6 +2,7 @@ module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4a
 import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.AppC_LCTVS.Sec3b_HilbertSchmidtProduct
 
 /-! # The spectral trace statements of §10.4.2 at orders between zero and one -/
 
@@ -68,6 +69,99 @@ it connects with the rest of the proof in Lean; in the paper it is used on pp. 4
 theorem spectralStripConvolution_nuclear_of_le_one (_hs₁ : s ≤ 1) (φ : BruhatCompactSupport C𝔽) :
     IsNuclearOperator (E := H₀) (F := H₀) (Aq(φ)) := by
   sorry
+
+/-- Classical input: the Dixmier–Malliavin factorization theorem, J. Dixmier and P. Malliavin,
+*Factorisations de fonctions et de vecteurs indéfiniment différentiables*, Bull. Sci. Math. (2)
+102 (1978), no. 4, 307–330, Théorème 3.1: for a Lie group `L`, every function in `C_c^∞(L)` is a
+finite sum of convolutions of two functions in `C_c^∞(L)`. Here it is applied to the idele class
+group, for the Tamagawa Haar measure. A compactly supported Bruhat test is invariant under a good
+subgroup `K` (a compact subgroup of the finite idele classes) and descends to a smooth compactly
+supported function on the Lie group `C_F / K` (F. Bruhat, *Distributions sur un groupe localement
+compact et applications à l'étude des représentations des groupes p-adiques*, Bull. Soc. Math.
+France 89 (1961), 43–75). Factor it there and pull the factors back; convolution on `C_F` of
+`K`-invariant functions is convolution on `C_F / K` up to the volume of `K`, which is absorbed into
+one factor. The real-line case is `spectralHomogeneousTest_real_factorization` in
+`Ch10_TraceSpectral/Sec3.lean`. -/
+theorem bruhatCompactSupport_mem_closure_convolution (φ : BruhatCompactSupport C𝔽) :
+    φ ∈ AddSubmonoid.closure {h : BruhatCompactSupport C𝔽 |
+      ∃ u v : BruhatCompactSupport C𝔽, h.val = lcaConvolution μ𝔽 u.val v.val} := by
+  sorry
+
+/-- Spectral convolution by a convolution of two tests is the composite of the two spectral
+convolutions. -/
+private theorem spectralStripConvolution_nuclear_of_hilbertSchmidt_comp
+    (t u v : BruhatCompactSupport C𝔽) (ht : t.val = lcaConvolution μ𝔽 u.val v.val) :
+    Aq(t) = (Aq(u)).comp (Aq(v)) := by
+  let ρ := hardySobolevTranslation μ𝔽 m𝔽 (-α) α s hI hs
+  have hρ := (exists_hardySobolevTranslation μ𝔽 m𝔽 (-α) α s hI hs).choose_spec.2
+  obtain ⟨θ, hθ, hact⟩ := bruhatRegularizedAction_convolution μ𝔽 ρ hρ u v
+  have heq : θ = t := Subtype.ext (hθ.trans ht.symm)
+  subst heq
+  ext q
+  obtain ⟨w, rfl⟩ := (globalThetaSobolev F a hI hs).mkQ_surjective q
+  rw [ContinuousLinearMap.comp_apply, spectralConvolution_mkQ, spectralConvolution_mkQ,
+    spectralConvolution_mkQ]
+  exact congrArg _ (hact w)
+
+/-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). If every test acts on the strip
+quotient by a Hilbert–Schmidt operator, then every test acts by a nuclear operator.
+Reconstruction: The paper does not state a Hilbert–Schmidt bound; this is a sufficient condition
+for `spectralStripConvolution_nuclear_of_le_one`, proved from the classical input
+`bruhatCompactSupport_mem_closure_convolution`: a test is a finite sum of convolutions `u * v`,
+the quotient action takes `u * v` to the composite of the two actions, and a composite of two
+Hilbert–Schmidt operators is nuclear (`nuclear_hilbertSchmidt_comp`).
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripConvolution_nuclear_of_hilbertSchmidt
+    (hHS : ∀ ψ : BruhatCompactSupport C𝔽, Aq(ψ) ∈ hilbertSchmidtOperators H₀ H₀)
+    (φ : BruhatCompactSupport C𝔽) : IsNuclearOperator (E := H₀) (F := H₀) (Aq(φ)) := by
+  induction (bruhatCompactSupport_mem_closure_convolution φ) using
+    AddSubmonoid.closure_induction with
+  | mem h hh =>
+    obtain ⟨u, v, huv⟩ := hh
+    rw [spectralStripConvolution_nuclear_of_hilbertSchmidt_comp a hα hs h u v huv]
+    exact nuclear_hilbertSchmidt_comp ⟨_, hHS u⟩ ⟨_, hHS v⟩
+  | zero =>
+    rw [(spectralConvolution_isLinear (F := F) a hI hs).map_zero]
+    exact (nuclearEndomorphisms _).zero_mem
+  | add x y _ _ hx hy =>
+    rw [(spectralConvolution_isLinear (F := F) a hI hs).map_add]
+    exact (nuclearEndomorphisms _).add_mem hx hy
+
+/-- Summable real sequences are square summable. -/
+private theorem spectralStripConvolution_hilbertSchmidt_of_nuclear_summable (f : ℕ → ℝ)
+    (hf : Summable (fun n ↦ f n ^ (1 : ℝ))) : Summable (fun n ↦ f n ^ (2 : ℝ)) := by
+  simp only [Real.rpow_one] at hf
+  simp only [Real.rpow_two]
+  have h0 : ∀ᶠ n in cofinite, ‖f n‖ ≤ 1 := by
+    have := (hf.tendsto_cofinite_zero).norm
+    rw [norm_zero] at this
+    exact this.eventually (eventually_le_nhds one_pos)
+  refine hf.norm.of_norm_bounded_eventually ?_
+  filter_upwards [h0] with n hn
+  rw [norm_pow, sq]
+  exact mul_le_of_le_one_left (norm_nonneg _) hn
+
+/-- Paper: Theorem 10.4.2.1, p. 459. A nuclear quotient convolution is Hilbert–Schmidt: the
+converse of `spectralStripConvolution_nuclear_of_hilbertSchmidt`, test by test. -/
+theorem spectralStripConvolution_hilbertSchmidt_of_nuclear (φ : BruhatCompactSupport C𝔽)
+    (hn : IsNuclearOperator (E := H₀) (F := H₀) (Aq(φ))) :
+    Aq(φ) ∈ hilbertSchmidtOperators H₀ H₀ := by
+  obtain ⟨hc, hsum⟩ := (mem_traceClassOperators_iff_isNuclearOperator _).mpr hn
+  exact ⟨hc, spectralStripConvolution_hilbertSchmidt_of_nuclear_summable _ hsum⟩
+
+/-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). At each order and width, every test
+acts on the strip quotient by a nuclear operator exactly when every test acts by a
+Hilbert–Schmidt operator. So the conclusion of `spectralStripConvolution_nuclear_of_le_one`
+is equivalent to the Hilbert–Schmidt property, given the classical input
+`bruhatCompactSupport_mem_closure_convolution`.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripConvolution_nuclear_iff_hilbertSchmidt :
+    (∀ φ : BruhatCompactSupport C𝔽, IsNuclearOperator (E := H₀) (F := H₀) (Aq(φ))) ↔
+      ∀ φ : BruhatCompactSupport C𝔽, Aq(φ) ∈ hilbertSchmidtOperators H₀ H₀ :=
+  ⟨fun h φ ↦ spectralStripConvolution_hilbertSchmidt_of_nuclear a hα hs φ (h φ),
+    fun h φ ↦ spectralStripConvolution_nuclear_of_hilbertSchmidt a hα hs h φ⟩
 
 /-- Paper: Theorem 10.4.2.1, p. 459. Spectral projection after convolution is nuclear.
 This follows from the open statement `spectralStripConvolution_nuclear_of_le_one` by (10.4.2.5).
