@@ -248,6 +248,200 @@ theorem spectralStripConvolution_nuclear_of_spectralProjection_hilbertSchmidt
   spectralStripConvolution_nuclear_of_hilbertSchmidt a hα hs
     (fun ψ ↦ spectralStripConvolution_hilbertSchmidt_of_spectralProjection a hα hs ψ (hHS ψ)) φ
 
+/-- An operator after the orthogonal projection onto a complete subspace is Hilbert–Schmidt
+exactly when the squared norms of its values on a Hilbert basis of the subspace are summable. -/
+private theorem spectralStripConvolution_comp_spectralProjection_hilbertSchmidt_iff_aux
+    {E G ι : Type*} [NormedAddCommGroup E] [InnerProductSpace ℂ E]
+    [CompleteSpace E] [NormedAddCommGroup G] [InnerProductSpace ℂ G] [CompleteSpace G]
+    (K : Submodule ℂ E) [CompleteSpace K] (e : HilbertBasis ι ℂ K) (T : E →L[ℂ] G) :
+    T.comp K.starProjection ∈ hilbertSchmidtOperators E G ↔
+      Summable (fun i ↦ ‖T (e i)‖ ^ (2 : ℕ)) := by
+  have hcrit : T.comp K.subtypeL ∈ hilbertSchmidtOperators K G ↔
+      Summable (fun i ↦ ‖T (e i)‖ ^ (2 : ℕ)) :=
+    mem_hilbertSchmidtOperators_iff_summable_basis e (T.comp K.subtypeL)
+  rw [← hcrit]
+  constructor
+  · intro h
+    have hfac : T.comp K.subtypeL =
+        ((ContinuousLinearMap.id ℂ G).comp (T.comp K.starProjection)).comp K.subtypeL := by
+      ext x
+      simp [Submodule.starProjection_eq_self_iff.mpr x.2]
+    rw [hfac]
+    exact spectralStripConvolution_hilbertSchmidt_of_spectralProjection_ideal _ _ _ h
+  · intro h
+    have hfac : T.comp K.starProjection =
+        ((ContinuousLinearMap.id ℂ G).comp (T.comp K.subtypeL)).comp
+          K.orthogonalProjectionOnto := by
+      ext x
+      rfl
+    rw [hfac]
+    exact spectralStripConvolution_hilbertSchmidt_of_spectralProjection_ideal _ _ _ h
+
+/-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). Convolution after spectral projection
+is Hilbert–Schmidt on the weighted space exactly when, for any Hilbert basis `e` of the
+orthogonal complement of the theta closure, the squared norms `‖A(φ) e i‖²` are summable.
+Reconstruction: The paper does not state a Hilbert–Schmidt bound. This is the form in which the
+hypothesis of `spectralStripConvolution_hilbertSchmidt_of_spectralProjection` is checked on a
+basis, for instance the basis of `exists_spectralComplement_takenakaBasis`.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripConvolution_comp_spectralProjection_hilbertSchmidt_iff {ι : Type*}
+    (e : HilbertBasis ι ℂ (globalThetaSobolev F a hI hs)ᗮ) (φ : BruhatCompactSupport C𝔽) :
+    (A(φ)).comp (spectralProjection (F := F) a hα hs) ∈ hilbertSchmidtOperators W W ↔
+      Summable (fun i ↦ ‖A(φ) (e i)‖ ^ (2 : ℕ)) :=
+  spectralStripConvolution_comp_spectralProjection_hilbertSchmidt_iff_aux _ e _
+
+/-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). If for one Hilbert basis `e` of the
+orthogonal complement of the theta closure the squared norms `‖A(ψ) e i‖²` are summable for
+every test `ψ`, then every test acts on the strip quotient by a nuclear operator.
+Reconstruction: The paper does not state a Hilbert–Schmidt bound. This combines
+`spectralStripConvolution_comp_spectralProjection_hilbertSchmidt_iff` with
+`spectralStripConvolution_nuclear_of_spectralProjection_hilbertSchmidt`, and so uses the
+classical input `bruhatCompactSupport_mem_closure_convolution`. For the basis of
+`exists_spectralComplement_takenakaBasis` the summands are indexed by the strip jets, that is, by
+the zeros counted with multiplicity.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripConvolution_nuclear_of_summable_basis {ι : Type*}
+    (e : HilbertBasis ι ℂ (globalThetaSobolev F a hI hs)ᗮ)
+    (hsum : ∀ ψ : BruhatCompactSupport C𝔽, Summable (fun i ↦ ‖A(ψ) (e i)‖ ^ (2 : ℕ)))
+    (φ : BruhatCompactSupport C𝔽) : IsNuclearOperator (E := H₀) (F := H₀) (Aq(φ)) :=
+  spectralStripConvolution_nuclear_of_spectralProjection_hilbertSchmidt a hα hs
+    (fun ψ ↦ (spectralStripConvolution_comp_spectralProjection_hilbertSchmidt_iff a hα hs e ψ).mpr
+      (hsum ψ)) φ
+
+/-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). Quotient convolution is
+Hilbert–Schmidt if convolution is Hilbert–Schmidt on a Hilbert space mapped boundedly into the
+weighted space, and the quotient map on that image has a bounded right inverse.
+Reconstruction: The paper does not state a Hilbert–Schmidt bound. The section need not be the
+orthogonal one, and the Hilbert space may carry a different but equivalent norm, as for a model
+space of a Hardy space mapped into the weighted space by an inverse Mellin transform.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripConvolution_hilbertSchmidt_of_section {G : Type*} [NormedAddCommGroup G]
+    [InnerProductSpace ℂ G] [CompleteSpace G] (J : G →L[ℂ] W) (R : H₀ →L[ℂ] G)
+    (hJR : ∀ x, (globalThetaSobolev F a hI hs).mkQ (J (R x)) = x)
+    (φ : BruhatCompactSupport C𝔽) (hHS : (A(φ)).comp J ∈ hilbertSchmidtOperators G W) :
+    Aq(φ) ∈ hilbertSchmidtOperators H₀ H₀ := by
+  have heq : Aq(φ) = ((globalThetaSobolev F a hI hs).mkQL.comp ((A(φ)).comp J)).comp R := by
+    ext x
+    conv_lhs => rw [← hJR x]
+    rw [spectralConvolution_mkQ]
+    rfl
+  rw [heq]
+  exact spectralStripConvolution_hilbertSchmidt_of_spectralProjection_ideal _ _ _ hHS
+
+open Classical in
+/-- Gram–Schmidt along an enumeration turns a linearly independent family whose orthogonal
+complement is zero into a Hilbert basis whose `i`-th vector lies in the span of the vectors of
+index at most `i`. -/
+private theorem exists_spectralComplement_takenakaBasis_aux {H ι : Type*} [NormedAddCommGroup H]
+    [InnerProductSpace ℂ H] [CompleteSpace H] (f : ι → H) (hf : LinearIndependent ℂ f)
+    (hsep : ∀ v : H, (∀ i, inner ℂ (f i) v = 0) → v = 0) (n : ι → ℕ)
+    (hn : Function.Injective n) :
+    ∃ e : HilbertBasis ι ℂ H, ∀ i, e i ∈ Submodule.span ℂ (f '' {k | n k ≤ n i}) := by
+  let S := {m : ℕ // m ∈ Set.range n}
+  let σ : ι ≃ S := Equiv.ofInjective n hn
+  let g : S → H := f ∘ σ.symm
+  have hg : LinearIndependent ℂ g := hf.comp _ σ.symm.injective
+  let gs := InnerProductSpace.gramSchmidtNormed ℂ g
+  have hgs : Orthonormal ℂ gs := InnerProductSpace.gramSchmidtNormed_orthonormal hg
+  have hv : Orthonormal ℂ (gs ∘ σ) := hgs.comp _ σ.injective
+  have hspan : Submodule.span ℂ (Set.range (gs ∘ σ)) = Submodule.span ℂ (Set.range g) := by
+    rw [Set.range_comp, σ.range_eq_univ, Set.image_univ,
+      InnerProductSpace.span_gramSchmidtNormed_range, InnerProductSpace.span_gramSchmidt]
+  have hbot : (Submodule.span ℂ (Set.range (gs ∘ σ)))ᗮ = ⊥ := by
+    rw [hspan, Submodule.eq_bot_iff]
+    intro v hv'
+    apply hsep v
+    intro i
+    have := (Submodule.mem_orthogonal _ v).mp hv' (g (σ i))
+      (Submodule.subset_span ⟨σ i, rfl⟩)
+    simpa [g] using this
+  refine ⟨HilbertBasis.mkOfOrthogonalEqBot hv hbot, fun i ↦ ?_⟩
+  rw [HilbertBasis.coe_mkOfOrthogonalEqBot]
+  have hmem : InnerProductSpace.gramSchmidt ℂ g (σ i) ∈
+      Submodule.span ℂ (g '' Set.Iic (σ i)) :=
+    InnerProductSpace.gramSchmidt_mem_span ℂ g le_rfl
+  have hsub : g '' Set.Iic (σ i) ⊆ f '' {k | n k ≤ n i} := by
+    rintro _ ⟨m, hm, rfl⟩
+    refine ⟨σ.symm m, ?_, rfl⟩
+    have h1 : n (σ.symm m) = m.val := congrArg Subtype.val (σ.apply_symm_apply m)
+    have h2 : (σ i).val = n i := rfl
+    simp only [Set.mem_ofPred_eq, h1]
+    exact h2 ▸ hm
+  change InnerProductSpace.gramSchmidtNormed ℂ g (σ i) ∈ _
+  rw [InnerProductSpace.gramSchmidtNormed]
+  exact Submodule.smul_mem _ _ (Submodule.span_mono hsub hmem)
+
+/-- Paper: Theorem 10.2.2.1, p. 446, and Theorem 10.4.2.1, p. 459. Every strip jet pairing is
+the inner product with a vector `r j` of the weighted space, and for an enumeration `n` of the
+jets the orthogonal complement of the theta closure has a Hilbert basis `e` indexed by the jets
+whose `j`-th vector lies in the span of the `r k` with `n k ≤ n j`.
+Reconstruction: The paper does not use such a basis. It is the analogue, in the weighted space,
+of the Takenaka–Malmquist–Walsh basis of a model space, the Gram–Schmidt orthonormalization of
+the reproducing kernels at the zeros (S. R. Garcia and W. T. Ross, *Model spaces: a survey*,
+Contemp. Math. 638 (2015), §5.4). It is built from the common-kernel theorem
+`spectralStripJet_commonKernel` and the linear independence of the jets, at every order and
+width.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem exists_spectralComplement_takenakaBasis
+    (χ : PontryaginDual (ideleClassNorm F).ker → PontryaginDual C𝔽)
+    (hχ : IsSpectralBasepointChoice χ) :
+    let u (j : SpectralStripJetIndex χ a α s) :
+        CompactIntervalSobolev μ𝔽 (logIdeleClassNorm F) (-α) α s true :=
+      (spectralStripJet_memLp χ hα hs j).toLp
+        (spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2)
+    ∃ (r : SpectralStripJetIndex χ a α s → W) (n : SpectralStripJetIndex χ a α s → ℕ)
+      (e : HilbertBasis (SpectralStripJetIndex χ a α s) ℂ (globalThetaSobolev F a hI hs)ᗮ),
+      (∀ j f, inner ℂ (r j) f = spectralSobolevPairing f (u j)) ∧ Function.Injective n ∧
+      ∀ j, (e j : W) ∈ Submodule.span ℂ (r '' {k | n k ≤ n j}) := by
+  intro u
+  let Θ := globalThetaSobolev F a hI hs
+  let T := (modulatedIntervalSobolev_dual m𝔽
+    (⟨isProperMap_ideleClassNorm F, ideleClassNorm_ne_one (F := F)⟩ : IsModulation m𝔽)
+    μ𝔽 (-α) α s hI hs).exists.choose
+  let Λ (j : SpectralStripJetIndex χ a α s) : StrongDual ℂ W := T.symm (u j)
+  have hΛ (j) (f : W) : Λ j f = spectralSobolevPairing f (u j) := by
+    have h := (spectralSobolevPairing_dual hI hs (Λ j) f).2
+    rw [h]
+    exact congrArg (spectralSobolevPairing f) (T.apply_symm_apply (u j))
+  let r (j : SpectralStripJetIndex χ a α s) : W := (InnerProductSpace.toDual ℂ W).symm (Λ j)
+  have hr (j) (f : W) : inner ℂ (r j) f = spectralSobolevPairing f (u j) := by
+    rw [InnerProductSpace.toDual_symm_apply, hΛ]
+  have hK := spectralStripJet_commonKernel χ hχ (a := a) hα hs
+  have hrΘ (j) : r j ∈ Θᗮ := by
+    rw [Submodule.mem_orthogonal']
+    intro θ hθ
+    rw [hr]
+    exact (hK θ).mp hθ j
+  have hu := spectralStripJet_toLp_linearIndependent χ hχ a hα hs
+  have hrind : LinearIndependent ℂ r := by
+    apply linearIndependent_iff'.mpr
+    intro S c h i hi
+    have h' := congrArg (fun x ↦ T (InnerProductSpace.toDual ℂ W x)) h
+    simp only [map_sum, map_smulₛₗ, LinearIsometryEquiv.apply_symm_apply, map_zero, r, Λ] at h'
+    have hz := linearIndependent_iff'.mp hu S _ h' i hi
+    simpa using hz
+  let f' (j : SpectralStripJetIndex χ a α s) : Θᗮ := ⟨r j, hrΘ j⟩
+  have hf' : LinearIndependent ℂ f' := LinearIndependent.of_comp Θᗮ.subtype hrind
+  have hsep (v : Θᗮ) (hv : ∀ j, inner ℂ (f' j) v = 0) : v = 0 := by
+    have hvΘ : (v : W) ∈ Θ := by
+      apply (hK v).mpr
+      intro j
+      rw [← hr]
+      exact hv j
+    have h0 := Submodule.inner_right_of_mem_orthogonal hvΘ v.2
+    exact Subtype.ext (inner_self_eq_zero.mp h0)
+  obtain ⟨n, hn⟩ := (spectralStripJet_countable χ a α s).exists_injective_nat
+  obtain ⟨e, he⟩ := exists_spectralComplement_takenakaBasis_aux f' hf' hsep n hn
+  refine ⟨r, n, e, hr, hn, fun j ↦ ?_⟩
+  have h1 : ((e j : Θᗮ) : W) ∈ (Submodule.span ℂ (f' '' {k | n k ≤ n j})).map Θᗮ.subtype :=
+    Submodule.mem_map_of_mem (he j)
+  rw [Submodule.map_span, ← Set.image_comp] at h1
+  exact h1
+
 /-- Paper: Theorem 10.4.2.1, p. 459. Spectral projection after convolution is nuclear.
 This follows from the open statement `spectralStripConvolution_nuclear_of_le_one` by (10.4.2.5).
 Deviation: This is the part of the printed range with `0 ≤ s ≤ 1`. The operator is independent
