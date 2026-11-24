@@ -456,6 +456,148 @@ theorem exists_spectralComplement_takenakaBasis
   rw [Submodule.map_span, ← Set.image_comp] at h1
   exact h1
 
+/-- The sum of `⟪T d i, T d i⟫` over an orthonormal basis of a finite-dimensional space does not
+depend on the basis. -/
+private theorem traceKey {V G ι κ : Type*} [NormedAddCommGroup V] [InnerProductSpace ℂ V]
+    [FiniteDimensional ℂ V] [NormedAddCommGroup G] [InnerProductSpace ℂ G] [CompleteSpace G]
+    [Fintype ι] [Fintype κ] (T : V →L[ℂ] G) (d : OrthonormalBasis ι ℂ V)
+    (c : OrthonormalBasis κ ℂ V) :
+    ∑ i, inner ℂ (T (d i)) (T (d i)) = ∑ j, inner ℂ (T (c j)) (T (c j)) := by
+  let Gm := T.adjoint ∘L T
+  have hG (x y : V) : inner ℂ (T x) (T y) = inner ℂ x (Gm y) := by
+    simp [Gm, ContinuousLinearMap.adjoint_inner_right]
+  have hG' (x y : V) : inner ℂ x (Gm y) = inner ℂ (Gm x) y := by
+    simp only [Gm, ContinuousLinearMap.comp_apply, ContinuousLinearMap.adjoint_inner_left,
+      ContinuousLinearMap.adjoint_inner_right]
+  calc ∑ i, inner ℂ (T (d i)) (T (d i))
+      = ∑ i, ∑ j, inner ℂ (d i) (c j) * inner ℂ (c j) (Gm (d i)) := by
+        refine Finset.sum_congr rfl fun i _ ↦ ?_
+        rw [hG, c.sum_inner_mul_inner]
+    _ = ∑ j, ∑ i, inner ℂ (Gm (c j)) (d i) * inner ℂ (d i) (c j) := by
+        rw [Finset.sum_comm]
+        refine Finset.sum_congr rfl fun j _ ↦ Finset.sum_congr rfl fun i _ ↦ ?_
+        rw [hG', mul_comm]
+    _ = ∑ j, inner ℂ (T (c j)) (T (c j)) := by
+        refine Finset.sum_congr rfl fun j _ ↦ ?_
+        rw [d.sum_inner_mul_inner, ← hG', ← hG]
+
+/-- The squared Hilbert–Schmidt sum over an orthonormal basis of a finite-dimensional space does
+not depend on the basis. -/
+private theorem traceX {V G ι κ : Type*} [NormedAddCommGroup V] [InnerProductSpace ℂ V]
+    [FiniteDimensional ℂ V] [NormedAddCommGroup G] [InnerProductSpace ℂ G] [CompleteSpace G]
+    [Fintype ι] [Fintype κ] (T : V →L[ℂ] G) (b : OrthonormalBasis ι ℂ V)
+    (c : OrthonormalBasis κ ℂ V) :
+    ∑ i, ‖T (b i)‖ ^ 2 = ∑ i, ‖T (c i)‖ ^ 2 := by
+  have h := traceKey T b c
+  simp only [inner_self_eq_norm_sq_to_K] at h
+  exact_mod_cast h
+
+/-- An orthonormal family in a finite-dimensional subspace with at least as many vectors as the
+dimension is a basis, so its squared Hilbert–Schmidt sum is the one over any orthonormal basis. -/
+private theorem sum_sq_eq_of_orthonormal_mem {E G κ ι : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℂ E] [CompleteSpace E] [NormedAddCommGroup G] [InnerProductSpace ℂ G]
+    [CompleteSpace G] [Fintype κ] [Fintype ι] (V : Submodule ℂ E) [FiniteDimensional ℂ V]
+    (T : E →L[ℂ] G) (b : OrthonormalBasis ι ℂ V) (w : κ → E) (hw : Orthonormal ℂ w)
+    (hwV : ∀ j, w j ∈ V) (hcard : Module.finrank ℂ V ≤ Fintype.card κ) :
+    ∑ j, ‖T (w j)‖ ^ 2 = ∑ i, ‖T (b i)‖ ^ 2 := by
+  let v (j : κ) : V := ⟨w j, hwV j⟩
+  have hv : Orthonormal ℂ v := ⟨fun j ↦ hw.1 j, fun i j hij ↦ hw.2 hij⟩
+  have htop : Submodule.span ℂ (Set.range v) = ⊤ := by
+    apply Submodule.eq_top_of_finrank_eq
+    apply le_antisymm (Submodule.finrank_le _)
+    rw [finrank_span_eq_card hv.linearIndependent]
+    exact hcard
+  let bv := OrthonormalBasis.mk hv htop.ge
+  have h := traceX (T.comp V.subtypeL) bv b
+  have hbv (j : κ) : (bv j : E) = w j := by
+    simp only [bv, OrthonormalBasis.coe_mk, v]
+  have hT (x : V) : (T.comp V.subtypeL) x = T (x : E) := rfl
+  simpa only [hT, hbv] using h
+
+/-- The case of `sum_sq_eq_of_orthonormal_mem` for the span of finitely many vectors, indexed by
+the same finite set as the orthonormal family. -/
+private theorem sum_sq_eq_of_orthonormal_mem_span {E G ι κ : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℂ E] [CompleteSpace E] [NormedAddCommGroup G] [InnerProductSpace ℂ G]
+    [CompleteSpace G] [Fintype ι] (r : κ → E) (S : Finset κ)
+    (T : E →L[ℂ] G) (b : OrthonormalBasis ι ℂ (Submodule.span ℂ (r '' (S : Set κ))))
+    (w : S → E) (hw : Orthonormal ℂ w)
+    (hwV : ∀ j, w j ∈ Submodule.span ℂ (r '' (S : Set κ))) :
+    ∑ j, ‖T (w j)‖ ^ 2 = ∑ i, ‖T (b i)‖ ^ 2 := by
+  classical
+  have : FiniteDimensional ℂ (Submodule.span ℂ (r '' (S : Set κ))) :=
+    FiniteDimensional.span_of_finite ℂ (S.finite_toSet.image r)
+  refine sum_sq_eq_of_orthonormal_mem _ T b w hw hwV ?_
+  have h1 := finrank_span_finset_le_card (R := ℂ) (S.image r)
+  rw [Finset.coe_image] at h1
+  exact h1.trans (Finset.card_image_le.trans (Fintype.card_coe S).ge)
+
+/-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). Let `r j` be the vector of the weighted
+space whose inner product is the pairing with the strip jet `u j`. If for every test `ψ` there is a
+constant `C` such that, for every finite set `S` of jets, the squared norms `‖A(ψ) b i‖²` over
+some orthonormal basis `b` of the span of the `r j` with `j ∈ S` add up to at most `C`, then every
+test acts on the strip quotient by a nuclear operator.
+Reconstruction: The paper does not state a Hilbert–Schmidt bound. On the initial segments of the
+enumeration in `exists_spectralComplement_takenakaBasis` the Takenaka basis vectors form an
+orthonormal basis of the span of the `r j`, so the partial sums of `‖A(ψ) e j‖²` equal the sums
+over `b` and are bounded by `C`; then `spectralStripConvolution_nuclear_of_summable_basis`
+applies. The hypothesis involves only finitely many zeros at a time, as for the finite Blaschke
+products of a model space, and uses the classical input
+`bruhatCompactSupport_mem_closure_convolution` through
+`spectralStripConvolution_nuclear_of_summable_basis`.
+Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
+this statement, and it is not known how it connects with the rest of the proof in Lean. -/
+theorem spectralStripConvolution_nuclear_of_finite_jet_bound
+    (χ : PontryaginDual (ideleClassNorm F).ker → PontryaginDual C𝔽)
+    (hχ : IsSpectralBasepointChoice χ) :
+    let u (j : SpectralStripJetIndex χ a α s) :
+        CompactIntervalSobolev μ𝔽 (logIdeleClassNorm F) (-α) α s true :=
+      (spectralStripJet_memLp χ hα hs j).toLp
+        (spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2)
+    (∃ r : SpectralStripJetIndex χ a α s → W,
+      (∀ j f, inner ℂ (r j) f = spectralSobolevPairing f (u j)) ∧
+      ∀ ψ : BruhatCompactSupport C𝔽, ∃ C : ℝ, ∀ S : Finset (SpectralStripJetIndex χ a α s),
+        ∃ (k : ℕ) (b : OrthonormalBasis (Fin k) ℂ (Submodule.span ℂ (r '' S))),
+          ∑ i, ‖A(ψ) (b i)‖ ^ 2 ≤ C) →
+    ∀ φ : BruhatCompactSupport C𝔽, IsNuclearOperator (E := H₀) (F := H₀) (Aq(φ)) := by
+  intro u ⟨r, hr, hC⟩
+  classical
+  obtain ⟨r', n, e, hr', hn, hspan, -⟩ := exists_spectralComplement_takenakaBasis a hα hs χ hχ
+  have hrr : r' = r := by
+    funext j
+    exact ext_inner_right ℂ fun f ↦ (hr' j f).trans (hr j f).symm
+  subst hrr
+  refine spectralStripConvolution_nuclear_of_summable_basis a hα hs e fun ψ ↦ ?_
+  obtain ⟨C, hCψ⟩ := hC ψ
+  -- initial segments
+  let Sg (N : ℕ) : Finset (SpectralStripJetIndex χ a α s) :=
+    (Finset.range N).preimage n (hn.injOn)
+  have hseg (N : ℕ) : ∑ j ∈ Sg N, ‖A(ψ) (e j)‖ ^ 2 ≤ C := by
+    obtain ⟨k, b, hb⟩ := hCψ (Sg N)
+    let V := Submodule.span ℂ (r' '' (Sg N : Set _))
+    have hmem (j : Sg N) : (e j : W) ∈ V := by
+      refine Submodule.span_mono ?_ (hspan j)
+      rintro _ ⟨i, hi, rfl⟩
+      refine ⟨i, ?_, rfl⟩
+      have hj := j.2
+      simp only [Sg, Finset.coe_preimage, Set.mem_preimage, Finset.coe_range, Set.mem_Iio,
+        Finset.mem_preimage, Finset.mem_range] at hj ⊢
+      exact lt_of_le_of_lt hi hj
+    have he : Orthonormal ℂ (fun j : Sg N ↦ ((e j : (globalThetaSobolev F a hI hs)ᗮ) : W)) :=
+      ((e.orthonormal).comp _ Subtype.val_injective).comp_linearIsometry
+        (globalThetaSobolev F a hI hs)ᗮ.subtypeₗᵢ
+    have key := sum_sq_eq_of_orthonormal_mem_span r' (Sg N) (A(ψ)) b _ he hmem
+    rw [← Finset.sum_coe_sort (Sg N)]
+    exact key.le.trans hb
+  -- summability from bounded initial segments
+  apply summable_of_sum_le (fun j ↦ sq_nonneg _) (c := C)
+  intro T
+  obtain ⟨N, hN⟩ : ∃ N, ∀ j ∈ T, n j < N := ⟨T.sup n + 1, fun j hj ↦
+    Nat.lt_succ_of_le (Finset.le_sup (f := n) hj)⟩
+  have hsub : T ⊆ Sg N := fun j hj ↦ by
+    simp only [Sg, Finset.mem_preimage, Finset.mem_range]
+    exact hN j hj
+  exact (Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ ↦ sq_nonneg _).trans (hseg N)
+
 /-- Paper: Theorem 10.4.2.1, p. 459. Spectral projection after convolution is nuclear.
 This follows from the open statement `spectralStripConvolution_nuclear_of_le_one` by (10.4.2.5).
 Deviation: This is the part of the printed range with `0 ≤ s ≤ 1`. The operator is independent
