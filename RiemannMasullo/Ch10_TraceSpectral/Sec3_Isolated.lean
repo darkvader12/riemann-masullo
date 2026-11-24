@@ -193,4 +193,100 @@ theorem spectralStripConvolution_traceCauchy_compact_block_series_of_summable_je
   exact spectralStripConvolution_block_series_of_summable_jetNorms a hα hs χ x Λ _hj φ M hM hMellin
     hsum U.val
 
+/-- A real family whose finite partial sums are bounded in absolute value is summable. -/
+private theorem spectralStripConvolution_compact_block_series_of_traceNorm_bddAbove_real
+    {Z : Type*} (h : Z → ℝ) (C : ℝ) (hb : ∀ K : Finset Z, |∑ z ∈ K, h z| ≤ C) :
+    Summable h := by
+  classical
+  refine Summable.of_abs (summable_of_sum_le (c := C + C) (fun z ↦ abs_nonneg (h z)) fun K ↦ ?_)
+  have hsplit : ∑ z ∈ K, |h z| =
+      ∑ z ∈ K.filter (fun z ↦ 0 ≤ h z), h z - ∑ z ∈ K.filter (fun z ↦ ¬ 0 ≤ h z), h z := by
+    rw [← Finset.sum_filter_add_sum_filter_not K (fun z ↦ 0 ≤ h z) (fun z ↦ |h z|)]
+    rw [sub_eq_add_neg, ← Finset.sum_neg_distrib]
+    congr 1
+    · exact Finset.sum_congr rfl fun z hz ↦ abs_of_nonneg (Finset.mem_filter.mp hz).2
+    · exact Finset.sum_congr rfl fun z hz ↦ abs_of_neg (lt_of_not_ge (Finset.mem_filter.mp hz).2)
+  rw [hsplit]
+  have h1 := (abs_le.mp (hb (K.filter (fun z ↦ 0 ≤ h z)))).2
+  have h2 := (abs_le.mp (hb (K.filter (fun z ↦ ¬ 0 ≤ h z)))).1
+  linarith
+
+/-- A complex family whose finite partial sums are bounded in norm is summable. -/
+private theorem spectralStripConvolution_compact_block_series_of_traceNorm_bddAbove_complex
+    {Z : Type*} (g : Z → ℂ) (C : ℝ) (hb : ∀ K : Finset Z, ‖∑ z ∈ K, g z‖ ≤ C) :
+    Summable g := by
+  have hre := spectralStripConvolution_compact_block_series_of_traceNorm_bddAbove_real
+    (fun z ↦ (g z).re) C fun K ↦ by
+      rw [← Complex.re_sum]
+      exact (Complex.abs_re_le_norm _).trans (hb K)
+  have him := spectralStripConvolution_compact_block_series_of_traceNorm_bddAbove_real
+    (fun z ↦ (g z).im) C fun K ↦ by
+      rw [← Complex.im_sum]
+      exact (Complex.abs_im_le_norm _).trans (hb K)
+  exact ((Complex.hasSum_iff g ⟨∑' z, (g z).re, ∑' z, (g z).im⟩).mpr
+    ⟨hre.hasSum, him.hasSum⟩).summable
+
+/-- Bounded trace norms of the finite block sums give summable block traces after inserting
+any bounded operator: the trace of the inserted finite sum is at most the norm of the operator
+times the trace norm. -/
+private theorem spectralStripConvolution_compact_block_series_of_traceNorm_bddAbove_abstract
+    {H J Z : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (A : H →L[ℂ] H) (x : J → H) (Λ : J → StrongDual ℂ H)
+    (N : Z → ℕ) (jet : (z : Z) → Fin (N z) → J) (R : Z → nuclearEndomorphisms H)
+    (hR : ∀ K : Finset Z, (∑ z ∈ K, R z).val = spectralConvolutionFiniteSum A x Λ K N jet)
+    (hbound : BddAbove (range fun K : Finset Z ↦ traceNorm (∑ z ∈ K, R z)))
+    (U : H →L[ℂ] H) :
+    Summable (fun z ↦ ∑ m : Fin (N z), Λ (jet z m) (A (U (x (jet z m))))) := by
+  classical
+  obtain ⟨c, hc⟩ := hbound
+  obtain ⟨tr, htr⟩ := hilbertTrace_linear (H := H)
+  let term (j : J) (y : H) : nuclearEndomorphisms H :=
+    ⟨((Λ j).comp A).smulRight y, smulRight_mem_nuclearEndomorphisms _ _⟩
+  refine spectralStripConvolution_compact_block_series_of_traceNorm_bddAbove_complex _ (‖U‖ * c)
+    fun K ↦ ?_
+  let T := ∑ z ∈ K, R z
+  let D : nuclearEndomorphisms H := ⟨U * T.val, mul_mem_nuclearEndomorphisms_left U T⟩
+  have heq : D = ∑ z ∈ K, ∑ m, term (jet z m) (U (x (jet z m))) := by
+    apply Subtype.ext
+    ext v
+    change U (T.val v) = _
+    rw [show T.val = spectralConvolutionFiniteSum A x Λ K N jet from hR K]
+    simp only [spectralConvolutionFiniteSum, term, Submodule.coe_sum,
+      sum_apply, ContinuousLinearMap.smulRight_apply, map_sum, map_smul]
+  have htrace : hilbertTrace D = ∑ z ∈ K, ∑ m : Fin (N z), Λ (jet z m) (A (U (x (jet z m)))) := by
+    rw [← htr, heq, map_sum]
+    refine Finset.sum_congr rfl fun z _ ↦ ?_
+    rw [map_sum]
+    refine Finset.sum_congr rfl fun m _ ↦ ?_
+    rw [htr]
+    exact hilbertTrace_smulRight _ _
+  rw [← htrace]
+  refine (norm_hilbertTrace_le D).trans ((traceNorm_mul_left_le U T).trans ?_)
+  exact mul_le_mul_of_nonneg_left (hc ⟨K, rfl⟩) (norm_nonneg U)
+
+/-- Paper: Theorem 10.3.2.1(1), pp. 453–455. The statement of the recorded gap
+`spectralStripConvolution_traceCauchy_compact_block_series` of `Sec3` (#7241), for every bounded
+insertion, follows from a bound for the trace norms of the finite sums of the zero blocks. That
+bound is all that `spectralStripConvolution_traceCauchy` uses: in `Sec3` the gap is consumed only
+through the private `spectralStripConvolution_traceCauchy_scalar_bound`, which derives this bound
+from the gap. With this theorem the two are equivalent, so the gap cannot be weakened by testing
+fewer insertions without changing what the rectangles of (10.3.2.1) are asked to do. -/
+theorem spectralStripConvolution_compact_block_series_of_traceNorm_bddAbove
+    (χ : PontryaginDual C₁ → PontryaginDual C𝔽)
+    {α s : ℝ} (hα : 0 ≤ α) (hs : 1 < s) (φ : BruhatCompactSupport C𝔽)
+    (x : SpectralStripJetIndex (F := F) (fun ω ↦ χ ω) a α s → Q(a, hStrip(hα), hs₀(hs)))
+    (Λ : SpectralStripJetIndex (F := F) (fun ω ↦ χ ω) a α s → StrongDual ℂ Q(a, hStrip(hα), hs₀(hs)))
+    (R : Z(χ, α) → nuclearEndomorphisms Q(a, hStrip(hα), hs₀(hs)))
+    (hR : ∀ K : Finset Z(χ, α), (∑ z ∈ K, R z).val =
+      spectralConvolutionFiniteSum (spectralConvolution (F := F) a hStrip(hα) hs₀(hs) φ) x Λ K
+        (fun z ↦ N(χ, α, s, z)) (fun z m ↦ ⟨(z.val.1, z.val.2.1, z.val.2.2, m.val), m.isLt⟩))
+    (hbound : BddAbove (range fun K : Finset Z(χ, α) ↦ traceNorm (∑ z ∈ K, R z)))
+    (U : Q(a, hStrip(hα), hs₀(hs)) →L[ℂ] Q(a, hStrip(hα), hs₀(hs))) :
+    Summable (fun z : Z(χ, α) ↦ ∑ m : Fin (N(χ, α, s, z)),
+      Λ ⟨(z.val.1, z.val.2.1, z.val.2.2, m.val), m.isLt⟩
+        (spectralConvolution (F := F) a hStrip(hα) hs₀(hs) φ
+          (U (x ⟨(z.val.1, z.val.2.1, z.val.2.2, m.val), m.isLt⟩)))) :=
+  spectralStripConvolution_compact_block_series_of_traceNorm_bddAbove_abstract _ x Λ _ _ R hR
+    hbound U
+
 end RiemannMasullo.Isolated
