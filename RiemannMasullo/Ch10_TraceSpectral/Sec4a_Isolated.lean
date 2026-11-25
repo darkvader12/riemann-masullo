@@ -131,56 +131,25 @@ theorem spectralStripConvolution_nuclear_of_le_one (_hs₁ : s ≤ 1) (φ : Bruh
     rw [hlin.map_add]
     exact (nuclearEndomorphisms _).add_mem hx hy
 
-/-- Classical input: the Dixmier–Malliavin factorization theorem, J. Dixmier and P. Malliavin,
-*Factorisations de fonctions et de vecteurs indéfiniment différentiables*, Bull. Sci. Math. (2)
-102 (1978), no. 4, 307–330, Théorème 3.1: for a Lie group `L`, every function in `C_c^∞(L)` is a
-finite sum of convolutions of two functions in `C_c^∞(L)`. Here it is applied to the idele class
-group, for the Tamagawa Haar measure. A compactly supported Bruhat test is invariant under a good
-subgroup `K` (a compact subgroup of the finite idele classes) and descends to a smooth compactly
-supported function on the Lie group `C_F / K` (F. Bruhat, *Distributions sur un groupe localement
-compact et applications à l'étude des représentations des groupes p-adiques*, Bull. Soc. Math.
-France 89 (1961), 43–75). Factor it there and pull the factors back; convolution on `C_F` of
-`K`-invariant functions is convolution on `C_F / K` up to the volume of `K`, which is absorbed into
-one factor. The real-line case is `spectralHomogeneousTest_real_factorization` in
-`Ch10_TraceSpectral/Sec3.lean`. -/
-theorem bruhatCompactSupport_mem_closure_convolution (φ : BruhatCompactSupport C𝔽) :
-    φ ∈ AddSubmonoid.closure {h : BruhatCompactSupport C𝔽 |
-      ∃ u v : BruhatCompactSupport C𝔽, h.val = lcaConvolution μ𝔽 u.val v.val} := by
-  sorry
-
-/-- Spectral convolution by a convolution of two tests is the composite of the two spectral
-convolutions. -/
-private theorem spectralStripConvolution_nuclear_of_hilbertSchmidt_comp
-    (t u v : BruhatCompactSupport C𝔽) (ht : t.val = lcaConvolution μ𝔽 u.val v.val) :
-    Aq(t) = (Aq(u)).comp (Aq(v)) := by
-  let ρ := hardySobolevTranslation μ𝔽 m𝔽 (-α) α s hI hs
-  have hρ := (exists_hardySobolevTranslation μ𝔽 m𝔽 (-α) α s hI hs).choose_spec.2
-  obtain ⟨θ, hθ, hact⟩ := bruhatRegularizedAction_convolution μ𝔽 ρ hρ u v
-  have heq : θ = t := Subtype.ext (hθ.trans ht.symm)
-  subst heq
-  ext q
-  obtain ⟨w, rfl⟩ := (globalThetaSobolev F a hI hs).mkQ_surjective q
-  rw [ContinuousLinearMap.comp_apply, spectralConvolution_mkQ, spectralConvolution_mkQ,
-    spectralConvolution_mkQ]
-  exact congrArg _ (hact w)
-
 /-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). If every test acts on the strip
 quotient by a Hilbert–Schmidt operator, then every test acts by a nuclear operator.
-Reconstruction: The paper does not state a Hilbert–Schmidt bound; this is a sufficient condition
-for `spectralStripConvolution_nuclear_of_le_one`, proved from the classical input
-`bruhatCompactSupport_mem_closure_convolution`: a test is a finite sum of convolutions `u * v`,
-the quotient action takes `u * v` to the composite of the two actions, and a composite of two
-Hilbert–Schmidt operators is nuclear (`nuclear_hilbertSchmidt_comp`).
+Reconstruction: The paper does not state a Hilbert–Schmidt bound. This is the argument of
+`spectralStripConvolution_nuclear_of_le_one`, with the open statement
+`spectralStripConvolution_hilbertSchmidt_of_le_one` as a hypothesis and at every order, proved
+from the classical input `bruhatCompactSupport_convolution_factorization`: a test is a finite
+sum of convolutions `u * v`, the quotient action takes `u * v` to the composite of the two
+actions, and a composite of two Hilbert–Schmidt operators is nuclear
+(`nuclear_hilbertSchmidt_comp`).
 Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
 this statement, and it is not known how it connects with the rest of the proof in Lean. -/
 theorem spectralStripConvolution_nuclear_of_hilbertSchmidt
     (hHS : ∀ ψ : BruhatCompactSupport C𝔽, Aq(ψ) ∈ hilbertSchmidtOperators H₀ H₀)
     (φ : BruhatCompactSupport C𝔽) : IsNuclearOperator (E := H₀) (F := H₀) (Aq(φ)) := by
-  induction (bruhatCompactSupport_mem_closure_convolution φ) using
+  induction (bruhatCompactSupport_convolution_factorization φ) using
     AddSubmonoid.closure_induction with
   | mem h hh =>
     obtain ⟨u, v, huv⟩ := hh
-    rw [spectralStripConvolution_nuclear_of_hilbertSchmidt_comp a hα hs h u v huv]
+    rw [spectralConvolution_lcaConvolution a hα hs h u v huv]
     exact nuclear_hilbertSchmidt_comp ⟨_, hHS u⟩ ⟨_, hHS v⟩
   | zero =>
     rw [(spectralConvolution_isLinear (F := F) a hI hs).map_zero]
@@ -215,7 +184,7 @@ theorem spectralStripConvolution_hilbertSchmidt_of_nuclear (φ : BruhatCompactSu
 acts on the strip quotient by a nuclear operator exactly when every test acts by a
 Hilbert–Schmidt operator. So the conclusion of `spectralStripConvolution_nuclear_of_le_one`
 is equivalent to the Hilbert–Schmidt property, given the classical input
-`bruhatCompactSupport_mem_closure_convolution`.
+`bruhatCompactSupport_convolution_factorization`.
 Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
 this statement, and it is not known how it connects with the rest of the proof in Lean. -/
 theorem spectralStripConvolution_nuclear_iff_hilbertSchmidt :
@@ -266,8 +235,9 @@ private theorem spectralStripConvolution_hilbertSchmidt_of_spectralProjection_id
 /-- Paper: Theorem 10.4.2.1, p. 459, equation (10.4.2.5). If convolution after spectral
 projection is Hilbert–Schmidt on the weighted space, then quotient convolution is
 Hilbert–Schmidt.
-Reconstruction: The paper does not state a Hilbert–Schmidt bound. This reduces the hypothesis
-of `spectralStripConvolution_nuclear_of_hilbertSchmidt` to a statement on the weighted space:
+Reconstruction: The paper does not state a Hilbert–Schmidt bound. This reduces the open
+statement `spectralStripConvolution_hilbertSchmidt_of_le_one`, the hypothesis of
+`spectralStripConvolution_nuclear_of_hilbertSchmidt`, to a statement on the weighted space:
 the quotient action is the quotient map after convolution after spectral projection, applied
 to the isometric section of the quotient map, and Hilbert–Schmidt operators form an ideal.
 For a Hilbert basis `e` of the spectral complement, the hypothesis says that the sum of
@@ -299,7 +269,7 @@ strip quotient by a nuclear operator.
 Reconstruction: The paper does not state a Hilbert–Schmidt bound. This combines
 `spectralStripConvolution_hilbertSchmidt_of_spectralProjection` with
 `spectralStripConvolution_nuclear_of_hilbertSchmidt`, and so uses the classical input
-`bruhatCompactSupport_mem_closure_convolution`.
+`bruhatCompactSupport_convolution_factorization`.
 Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
 this statement, and it is not known how it connects with the rest of the proof in Lean. -/
 theorem spectralStripConvolution_nuclear_of_spectralProjection_hilbertSchmidt
@@ -358,7 +328,7 @@ every test `ψ`, then every test acts on the strip quotient by a nuclear operato
 Reconstruction: The paper does not state a Hilbert–Schmidt bound. This combines
 `spectralStripConvolution_comp_spectralProjection_hilbertSchmidt_iff` with
 `spectralStripConvolution_nuclear_of_spectralProjection_hilbertSchmidt`, and so uses the
-classical input `bruhatCompactSupport_mem_closure_convolution`. For the basis of
+classical input `bruhatCompactSupport_convolution_factorization`. For the basis of
 `exists_spectralComplement_takenakaBasis` the summands are indexed by the strip jets, that is, by
 the zeros counted with multiplicity.
 Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
@@ -653,7 +623,7 @@ orthonormal basis of the span of the `r j`, so the partial sums of `‖A(ψ) e j
 over `b` and are bounded by `C`; then `spectralStripConvolution_nuclear_of_summable_basis`
 applies. The hypothesis involves only finitely many zeros at a time, as for the finite Blaschke
 products of a model space, and uses the classical input
-`bruhatCompactSupport_mem_closure_convolution` through
+`bruhatCompactSupport_convolution_factorization` through
 `spectralStripConvolution_nuclear_of_summable_basis`.
 Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
 this statement, and it is not known how it connects with the rest of the proof in Lean. -/
@@ -838,7 +808,8 @@ Reconstruction: The paper does not state a Hilbert–Schmidt bound. Convolution 
 theta closure, so its adjoint preserves the complement and the quotient action is the adjoint
 of the adjoint restricted to the complement. Unlike
 `spectralStripConvolution_comp_spectralProjection_hilbertSchmidt_iff`, this is an exact
-criterion for the Hilbert–Schmidt property of the quotient action.
+criterion for the Hilbert–Schmidt property of the quotient action, so at `s ≤ 1` it is
+equivalent to the open statement `spectralStripConvolution_hilbertSchmidt_of_le_one`.
 Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
 this statement, and it is not known how it connects with the rest of the proof in Lean. -/
 theorem spectralStripConvolution_hilbertSchmidt_iff_summable_adjoint {ι : Type*}
@@ -855,7 +826,7 @@ summable.
 Reconstruction: The paper does not state a Hilbert–Schmidt bound. This combines
 `spectralStripConvolution_hilbertSchmidt_iff_summable_adjoint` with
 `spectralStripConvolution_nuclear_iff_hilbertSchmidt`, and so uses the classical input
-`bruhatCompactSupport_mem_closure_convolution`.
+`bruhatCompactSupport_convolution_factorization`.
 Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
 this statement, and it is not known how it connects with the rest of the proof in Lean. -/
 theorem spectralStripConvolution_nuclear_iff_summable_adjoint {ι : Type*}
@@ -913,7 +884,7 @@ orthogonal complement of the theta closure (`spectralStripJet_commonKernel`), an
 inequality the finite sums are at most the full sum over a Hilbert basis, which is finite by
 `spectralStripConvolution_nuclear_iff_summable_adjoint`. So the finite-dimensional bound is
 equivalent to the open statement `spectralStripConvolution_nuclear_of_le_one`, given the
-classical input `bruhatCompactSupport_mem_closure_convolution`.
+classical input `bruhatCompactSupport_convolution_factorization`.
 Deviation: No restriction on the Sobolev order or the width is needed. Nothing in the Lean uses
 this statement, and it is not known how it connects with the rest of the proof in Lean. -/
 theorem spectralStripConvolution_nuclear_iff_finite_jet_bound_adjoint
